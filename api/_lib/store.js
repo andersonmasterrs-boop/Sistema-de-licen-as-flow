@@ -210,6 +210,16 @@ function removeById(collection, id) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     if (req.body && typeof req.body === "object") return resolve(req.body);
+    if (typeof req.body === "string") {
+      if (!req.body.trim()) return resolve({});
+      try {
+        return resolve(JSON.parse(req.body));
+      } catch (error) {
+        return reject(error);
+      }
+    }
+    if (typeof req.on !== "function") return resolve({});
+
     let raw = "";
     req.on("data", (chunk) => {
       raw += chunk;
@@ -222,6 +232,7 @@ function readBody(req) {
         reject(error);
       }
     });
+    req.on("error", reject);
   });
 }
 
