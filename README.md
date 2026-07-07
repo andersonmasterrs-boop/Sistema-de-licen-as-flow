@@ -42,7 +42,7 @@ ADMIN_USER=andre ADMIN_PASSWORD=sua-senha APP_PORT=3000 npm start
 Endpoint principal:
 
 ```text
-GET /api/license/check?account=19485815&robot=FLOWWIN.mq5&key=LIC-19485815-FLOWWIN&broker=XP
+GET /api/license/check?account=19485815&robot=Rompedor%20Flow&key=LIC-19485815-ROMPEDOR-FLOW&broker=XP
 ```
 
 Resposta JSON quando autorizado:
@@ -60,7 +60,7 @@ Resposta JSON quando autorizado:
 Para EAs que preferem resposta simples:
 
 ```text
-GET /api/license/check?account=19485815&robot=FLOWWIN.mq5&key=LIC-19485815-FLOWWIN&format=text
+GET /api/license/check?account=19485815&robot=Rompedor%20Flow&key=LIC-19485815-ROMPEDOR-FLOW&format=text
 ```
 
 Retorna `AUTHORIZED|2027-06-16T14:31:00.000Z` ou `DENIED|MOTIVO`.

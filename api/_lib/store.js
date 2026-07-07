@@ -298,7 +298,7 @@ function createInitialDb() {
   };
   const robotOne = {
     id: "bot_seed_flowwin",
-    name: "FLOWWIN.mq5",
+    name: "Rompedor Flow",
     version: "v1.00",
     status: "active",
     message: "Robo liberado.",
@@ -307,7 +307,7 @@ function createInitialDb() {
   };
   const robotTwo = {
     id: "bot_seed_grid",
-    name: "GRID.mq5",
+    name: "Grid Flow",
     version: "v5.00",
     status: "updated",
     message: "Versao atualizada disponivel.",
@@ -323,7 +323,7 @@ function createInitialDb() {
         id: "lic_seed_flowwin",
         userId: userOne.id,
         robotId: robotOne.id,
-        key: "LIC-19485815-FLOWWIN",
+        key: "LIC-19485815-ROMPEDOR-FLOW",
         status: "active",
         type: "REAL",
         price: 497,

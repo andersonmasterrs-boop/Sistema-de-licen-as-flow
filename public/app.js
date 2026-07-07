@@ -194,7 +194,7 @@ function renderRobots() {
     <section class="panel">
       <h1>Robos</h1>
       <form class="actions" onsubmit="createRobot(event)">
-        <label>Nome do arquivo <input name="name" placeholder="FLOWWIN.mq5" required></label>
+        <label>Nome do robo <input name="name" placeholder="Rompedor Flow" required></label>
         <label>Versao <input name="version" value="v1.00"></label>
         <label>Status <select name="status"><option value="updated">Atualizado</option><option value="active">Ativo</option><option value="paused">Pausado</option></select></label>
         <button class="btn btn-red" type="submit">Adicionar</button>

@@ -387,8 +387,8 @@ function ensureDatabase() {
   if (fs.existsSync(dbPath)) return;
   const userOne = createUser({ account: "19485815", name: "LORENI LUCIA BENINI TOSIN", broker: "XP Investimentos CCTVM SA", type: "Real" });
   const userTwo = createUser({ account: "13115936", name: "EVELIZE MASIERO", broker: "Banco", type: "Real" });
-  const robotOne = createRobot({ name: "FLOWWIN.mq5", version: "v1.00", status: "active", message: "Robo liberado." });
-  const robotTwo = createRobot({ name: "GRID.mq5", version: "v5.00", status: "updated", message: "Versao atualizada disponivel." });
+  const robotOne = createRobot({ name: "Rompedor Flow", version: "v1.00", status: "active", message: "Robo liberado." });
+  const robotTwo = createRobot({ name: "Grid Flow", version: "v5.00", status: "updated", message: "Versao atualizada disponivel." });
   const seed = {
     users: [userOne, userTwo],
     robots: [robotOne, robotTwo],
@@ -396,7 +396,7 @@ function ensureDatabase() {
       createLicense({
         userId: userOne.id,
         robotId: robotOne.id,
-        key: "LIC-19485815-FLOWWIN",
+        key: "LIC-19485815-ROMPEDOR-FLOW",
         status: "active",
         type: "REAL",
         price: 497,
