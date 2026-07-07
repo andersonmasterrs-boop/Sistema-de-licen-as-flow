@@ -22,6 +22,8 @@ Este primeiro MVP usa `data/db.json` como armazenamento local, criado automatica
 
 Para rodar em producao no Vercel, o proximo passo tecnico e trocar o armazenamento local por um banco externo, como Supabase ou Neon Postgres. O painel web ja fica em `public/`, e a regra de licenca ja esta concentrada em `src/server.js`, pronta para ser separada em funcoes serverless quando o banco estiver definido.
 
+O projeto tambem inclui funcoes serverless em `api/` para rodar no Vercel. Nesta fase elas usam memoria temporaria da funcao, entao servem para validar o deploy e o fluxo. Para dados permanentes, conecte um banco externo.
+
 Login inicial:
 
 ```text
