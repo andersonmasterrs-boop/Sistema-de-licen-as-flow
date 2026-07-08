@@ -5,6 +5,8 @@ const {
   buildState,
   checkLicense,
   reportPerformance,
+  createAdmin,
+  updateAdmin,
   createUser,
   createRobot,
   createLicense,
@@ -74,6 +76,8 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 200, { ok: true, data: buildState() });
     }
 
+    if (route === "/admins") return handleAdmins(req, res);
+    if (route.startsWith("/admins/")) return handleAdminById(req, res, route.slice("/admins/".length));
     if (route === "/users") return handleUsers(req, res);
     if (route.startsWith("/users/")) return handleUserById(req, res, route.slice("/users/".length));
     if (route === "/robots") return handleRobots(req, res);
@@ -117,6 +121,51 @@ async function handleUsers(req, res) {
     await persistDb();
     return sendJson(res, 201, { ok: true, user });
   }
+  return methodNotAllowed(res);
+}
+
+async function handleAdmins(req, res) {
+  const db = getDb();
+  if (req.method === "GET") return sendJson(res, 200, { ok: true, admins: buildState().admins });
+  if (req.method === "POST") {
+    const admin = createAdmin(await readBody(req));
+    db.admins.unshift(admin);
+    await persistDb();
+    const { passwordHash, passwordSalt, ...publicAdmin } = admin;
+    return sendJson(res, 201, { ok: true, admin: publicAdmin });
+  }
+  return methodNotAllowed(res);
+}
+
+async function handleAdminById(req, res, id) {
+  const db = getDb();
+  const decodedId = decodeURIComponent(id);
+  if (req.method === "PUT") {
+    const body = pick(await readBody(req), ["name", "role", "status", "password"]);
+    const currentAdmin = (db.admins || []).find((item) => item.id === decodedId);
+    if (!currentAdmin) return sendJson(res, 404, { ok: false, error: "ADMIN_NOT_FOUND" });
+    if (currentAdmin.status === "active" && body.status && body.status !== "active" && db.admins.filter((item) => item.status === "active").length <= 1) {
+      return sendJson(res, 400, { ok: false, error: "LAST_ADMIN_REQUIRED" });
+    }
+    const admin = updateAdmin(decodedId, body);
+    if (!admin) return sendJson(res, 404, { ok: false, error: "ADMIN_NOT_FOUND" });
+    await persistDb();
+    const { passwordHash, passwordSalt, ...publicAdmin } = admin;
+    return sendJson(res, 200, { ok: true, admin: publicAdmin });
+  }
+
+  if (req.method === "DELETE") {
+    const admin = (db.admins || []).find((item) => item.id === decodedId);
+    if (!admin) return sendJson(res, 404, { ok: false, error: "ADMIN_NOT_FOUND" });
+    const activeAdmins = db.admins.filter((item) => item.status === "active");
+    if (admin.status === "active" && activeAdmins.length <= 1) {
+      return sendJson(res, 400, { ok: false, error: "LAST_ADMIN_REQUIRED" });
+    }
+    removeById("admins", decodedId);
+    await persistDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
   return methodNotAllowed(res);
 }
 

@@ -14,6 +14,7 @@ const navItems = [
   ["performance", "Performance"],
   ["reports", "Relatorio"],
   ["finance", "Financeiro"],
+  ["admins", "Admins"],
   ["checks", "Check-ins"]
 ];
 
@@ -125,6 +126,7 @@ function renderView() {
     performance: renderPerformance,
     reports: renderReports,
     finance: renderFinance,
+    admins: renderAdmins,
     checks: renderChecks
   };
   content.innerHTML = views[state.view]();
@@ -399,6 +401,38 @@ function renderChecks() {
   `;
 }
 
+function renderAdmins() {
+  const admins = state.data.admins || [];
+  return `
+    <section class="panel">
+      <h1>Administradores</h1>
+      <p class="muted">Acessos ao painel do sistema de licencas.</p>
+      <form class="actions" onsubmit="createAdmin(event)">
+        <label>Nome <input name="name" placeholder="Andrei" required></label>
+        <label>Usuario <input name="username" placeholder="andrei" required autocomplete="off"></label>
+        <label>Senha <input name="password" type="password" required autocomplete="new-password"></label>
+        <label>Status <select name="status"><option value="active">Ativo</option><option value="blocked">Bloqueado</option></select></label>
+        <button class="btn btn-red" type="submit">Adicionar</button>
+      </form>
+    </section>
+    <section class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Usuario</th><th>Perfil</th><th>Status</th><th>Atualizado</th><th>Editar</th></tr></thead>
+        <tbody>${admins.map((admin) => `
+          <tr>
+            <td>${escapeHtml(admin.name)}</td>
+            <td><strong>${escapeHtml(admin.username)}</strong></td>
+            <td>${escapeHtml(admin.role || "admin")}</td>
+            <td><span class="badge ${admin.status === "active" ? "green" : "red"}">${admin.status === "active" ? "Ativo" : "Bloqueado"}</span></td>
+            <td>${formatDate(admin.updatedAt)}</td>
+            <td><button class="btn btn-ghost" onclick="openAdmin('${admin.id}')">Editar</button></td>
+          </tr>
+        `).join("") || `<tr><td colspan="6">Nenhum administrador cadastrado.</td></tr>`}</tbody>
+      </table>
+    </section>
+  `;
+}
+
 function openUser(userId) {
   const user = findUser(userId);
   const licenses = state.data.licenses.filter((license) => license.userId === userId);
@@ -439,6 +473,34 @@ function openUser(userId) {
       <div class="cards-list" style="margin-top: 16px">
         ${licenses.map(licenseCard).join("") || empty("Nenhum EA vinculado.")}
       </div>
+    </article>
+  `;
+}
+
+function openAdmin(adminId) {
+  const admin = (state.data.admins || []).find((item) => item.id === adminId);
+  if (!admin) return toast("Administrador nao encontrado");
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>${escapeHtml(admin.name)}</h2>
+        <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      </div>
+      <form onsubmit="saveAdmin(event, '${admin.id}')">
+        <div class="split">
+          <label>Nome <input name="name" value="${escapeAttr(admin.name)}" required></label>
+          <label>Usuario <input value="${escapeAttr(admin.username)}" disabled></label>
+          <label>Status <select name="status"><option value="active" ${admin.status === "active" ? "selected" : ""}>Ativo</option><option value="blocked" ${admin.status === "blocked" ? "selected" : ""}>Bloqueado</option></select></label>
+          <label>Nova senha <input name="password" type="password" placeholder="Deixe em branco para manter" autocomplete="new-password"></label>
+        </div>
+        <br>
+        <div class="actions">
+          <button class="btn btn-red" type="submit">Salvar</button>
+          <button class="btn btn-ghost" type="button" onclick="deleteAdmin('${admin.id}')">Excluir</button>
+        </div>
+      </form>
     </article>
   `;
 }
@@ -499,6 +561,30 @@ async function createUser(event) {
   event.preventDefault();
   await api("/api/users", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())) });
   toast("Usuario adicionado");
+  await reload();
+}
+
+async function createAdmin(event) {
+  event.preventDefault();
+  await api("/api/admins", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())) });
+  toast("Administrador adicionado");
+  await reload();
+}
+
+async function saveAdmin(event, adminId) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.target).entries());
+  if (!body.password) delete body.password;
+  await api(`/api/admins/${adminId}`, { method: "PUT", body: JSON.stringify(body) });
+  toast("Administrador salvo");
+  closeModal();
+  await reload();
+}
+
+async function deleteAdmin(adminId) {
+  await api(`/api/admins/${adminId}`, { method: "DELETE" });
+  toast("Administrador excluido");
+  closeModal();
   await reload();
 }
 
