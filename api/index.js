@@ -44,7 +44,7 @@ module.exports = async function handler(req, res) {
       await saveDb();
 
       if (url.searchParams.get("format") === "text" || input.format === "text") {
-        return sendText(res, result.authorized ? 200 : 403, result.authorized ? `AUTHORIZED|${result.expiresAt}` : `DENIED|${result.reason}`);
+        return sendText(res, result.authorized ? 200 : 403, result.authorized ? `AUTHORIZED|${result.expiresAt}|${sanitizeTextMessage(result.message || "")}` : `DENIED|${result.reason}`);
       }
       return sendJson(res, result.authorized ? 200 : 403, result);
     }
@@ -81,6 +81,10 @@ function normalizeRoute(req) {
 
   const url = new URL(req.url, "https://license.local");
   return url.pathname.replace(/^\/api/, "") || "/";
+}
+
+function sanitizeTextMessage(message) {
+  return String(message || "").replace(/\|/g, "/").replace(/[\r\n]+/g, " ").trim();
 }
 
 async function handleUsers(req, res) {

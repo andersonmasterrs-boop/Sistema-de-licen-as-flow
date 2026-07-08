@@ -307,6 +307,19 @@ bool VerificarLicencaOnline()
    if(status == 200 && StringFind(resposta, "AUTHORIZED|") == 0)
    {
       Print("Licenca autorizada para ", RobotName, ". Conta: ", AccountInfoInteger(ACCOUNT_LOGIN));
+      int primeiroSeparador = StringFind(resposta, "|");
+      int segundoSeparador = StringFind(resposta, "|", primeiroSeparador + 1);
+      if(segundoSeparador >= 0 && StringLen(resposta) > segundoSeparador + 1)
+      {
+         string mensagemServidor = StringSubstr(resposta, segundoSeparador + 1);
+         StringTrimLeft(mensagemServidor);
+         StringTrimRight(mensagemServidor);
+         if(StringLen(mensagemServidor) > 0)
+         {
+            Print("Mensagem do servidor: ", mensagemServidor);
+            Alert(RobotName, ": ", mensagemServidor);
+         }
+      }
       return true;
    }
 

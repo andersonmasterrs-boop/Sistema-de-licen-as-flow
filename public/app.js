@@ -244,8 +244,9 @@ function renderRobots() {
             <span class="badge red">${escapeHtml(robot.version)}</span>
             <span class="badge green">${escapeHtml(robot.status)}</span>
             <span class="badge">${robot.clients} clientes</span>
+            <div class="muted">${escapeHtml(robot.message || "Sem mensagem ativa")}</div>
           </div>
-          <button class="btn btn-blue" onclick="copyRobotMessage('${robot.id}')">Mensagem</button>
+          <button class="btn btn-blue" onclick="openRobotMessage('${robot.id}')">Mensagem</button>
         </article>
       `).join("")}
     </section>
@@ -408,6 +409,46 @@ async function createRobot(event) {
   await reload();
 }
 
+function openRobotMessage(robotId) {
+  const robot = findRobot(robotId);
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>Mensagem - ${escapeHtml(robot.name)}</h2>
+        <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      </div>
+      <form onsubmit="saveRobotMessage(event, '${robot.id}')">
+        <label>Mensagem enviada ao MT5
+          <textarea name="message" rows="5" placeholder="Ex: Nova versao disponivel. Atualize seu robo hoje.">${escapeHtml(robot.message || "")}</textarea>
+        </label>
+        <br>
+        <div class="actions">
+          <button class="btn btn-red" type="submit">Salvar mensagem</button>
+          <button class="btn btn-ghost" type="button" onclick="clearRobotMessage('${robot.id}')">Limpar</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+async function saveRobotMessage(event, robotId) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.target).entries());
+  await api(`/api/robots/${robotId}`, { method: "PUT", body: JSON.stringify(body) });
+  toast("Mensagem salva");
+  closeModal();
+  await reload();
+}
+
+async function clearRobotMessage(robotId) {
+  await api(`/api/robots/${robotId}`, { method: "PUT", body: JSON.stringify({ message: "" }) });
+  toast("Mensagem limpa");
+  closeModal();
+  await reload();
+}
+
 async function createLicense(event, userId) {
   event.preventDefault();
   const body = Object.fromEntries(new FormData(event.target).entries());
@@ -471,11 +512,6 @@ function findUser(id) {
 
 function findRobot(id) {
   return state.data.robots.find((item) => item.id === id) || { name: "-", version: "-" };
-}
-
-function copyRobotMessage(robotId) {
-  const robot = findRobot(robotId);
-  copyText(robot.message || `Robo ${robot.name} disponivel.`);
 }
 
 function copyText(text) {

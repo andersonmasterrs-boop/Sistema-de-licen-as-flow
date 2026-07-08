@@ -50,6 +50,19 @@ bool VerificarLicenca()
    if(StringFind(resposta, "AUTHORIZED|") == 0)
    {
       Print("Licenca autorizada: ", resposta);
+      int primeiroSeparador = StringFind(resposta, "|");
+      int segundoSeparador = StringFind(resposta, "|", primeiroSeparador + 1);
+      if(segundoSeparador >= 0 && StringLen(resposta) > segundoSeparador + 1)
+      {
+         string mensagemServidor = StringSubstr(resposta, segundoSeparador + 1);
+         StringTrimLeft(mensagemServidor);
+         StringTrimRight(mensagemServidor);
+         if(StringLen(mensagemServidor) > 0)
+         {
+            Print("Mensagem do servidor: ", mensagemServidor);
+            Alert(RobotName, ": ", mensagemServidor);
+         }
+      }
       return true;
    }
 
