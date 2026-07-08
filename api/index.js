@@ -15,7 +15,7 @@ const {
   sendText,
   methodNotAllowed,
   pick
-} = require("./_lib/store");
+} = require("../lib/store");
 
 module.exports = async function handler(req, res) {
   try {
