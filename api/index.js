@@ -10,6 +10,9 @@ const {
   updateById,
   removeById,
   resolvePendingRequestsForAccount,
+  loadDb,
+  saveDb,
+  storageStatus,
   readBody,
   sendJson,
   sendText,
@@ -19,10 +22,11 @@ const {
 
 module.exports = async function handler(req, res) {
   try {
+    await loadDb();
     const route = normalizeRoute(req);
 
     if (route === "/health") {
-      return sendJson(res, 200, { ok: true, service: "license-system-api", time: new Date().toISOString() });
+      return sendJson(res, 200, { ok: true, service: "license-system-api", storage: storageStatus(), time: new Date().toISOString() });
     }
 
     if (route === "/session/login") {
@@ -37,6 +41,7 @@ module.exports = async function handler(req, res) {
       const url = new URL(req.url, "https://license.local");
       const input = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await readBody(req);
       const result = checkLicense(input, req);
+      await saveDb();
 
       if (url.searchParams.get("format") === "text" || input.format === "text") {
         return sendText(res, result.authorized ? 200 : 403, result.authorized ? `AUTHORIZED|${result.expiresAt}` : `DENIED|${result.reason}`);
@@ -85,6 +90,7 @@ async function handleUsers(req, res) {
     const user = createUser(await readBody(req));
     db.users.unshift(user);
     resolvePendingRequestsForAccount(user.account);
+    await saveDb();
     return sendJson(res, 201, { ok: true, user });
   }
   return methodNotAllowed(res);
@@ -95,6 +101,7 @@ async function handleUserById(req, res, id) {
   if (req.method === "PUT") {
     const user = updateById("users", decodedId, pick(await readBody(req), ["account", "name", "broker", "type", "notes"]));
     if (!user) return sendJson(res, 404, { ok: false, error: "USER_NOT_FOUND" });
+    await saveDb();
     return sendJson(res, 200, { ok: true, user });
   }
 
@@ -102,6 +109,7 @@ async function handleUserById(req, res, id) {
     const db = getDb();
     removeById("users", decodedId);
     db.licenses = db.licenses.filter((item) => item.userId !== decodedId);
+    await saveDb();
     return sendJson(res, 200, { ok: true });
   }
 
@@ -114,6 +122,7 @@ async function handleRobots(req, res) {
   if (req.method === "POST") {
     const robot = createRobot(await readBody(req));
     db.robots.unshift(robot);
+    await saveDb();
     return sendJson(res, 201, { ok: true, robot });
   }
   return methodNotAllowed(res);
@@ -123,6 +132,7 @@ async function handleRobotById(req, res, id) {
   if (req.method !== "PUT") return methodNotAllowed(res);
   const robot = updateById("robots", decodeURIComponent(id), pick(await readBody(req), ["name", "version", "status", "message"]));
   if (!robot) return sendJson(res, 404, { ok: false, error: "ROBOT_NOT_FOUND" });
+  await saveDb();
   return sendJson(res, 200, { ok: true, robot });
 }
 
@@ -132,6 +142,7 @@ async function handleLicenses(req, res) {
   if (req.method === "POST") {
     const license = createLicense(await readBody(req));
     db.licenses.unshift(license);
+    await saveDb();
     return sendJson(res, 201, { ok: true, license });
   }
   return methodNotAllowed(res);
@@ -142,11 +153,13 @@ async function handleLicenseById(req, res, id) {
   if (req.method === "PUT") {
     const license = updateById("licenses", decodedId, pick(await readBody(req), ["status", "type", "price", "paidAt", "expiresAt", "key"]));
     if (!license) return sendJson(res, 404, { ok: false, error: "LICENSE_NOT_FOUND" });
+    await saveDb();
     return sendJson(res, 200, { ok: true, license });
   }
 
   if (req.method === "DELETE") {
     removeById("licenses", decodedId);
+    await saveDb();
     return sendJson(res, 200, { ok: true });
   }
 

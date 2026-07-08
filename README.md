@@ -22,7 +22,9 @@ Este primeiro MVP usa `data/db.json` como armazenamento local, criado automatica
 
 Para rodar em producao no Vercel, o proximo passo tecnico e trocar o armazenamento local por um banco externo, como Supabase ou Neon Postgres. O painel web ja fica em `public/`, e a regra de licenca ja esta concentrada em `src/server.js`, pronta para ser separada em funcoes serverless quando o banco estiver definido.
 
-O projeto tambem inclui funcoes serverless em `api/` para rodar no Vercel. Nesta fase elas usam memoria temporaria da funcao, entao servem para validar o deploy e o fluxo. Para dados permanentes, conecte um banco externo.
+O projeto tambem inclui uma funcao serverless unica em `api/index.js` para rodar no Vercel. Para dados permanentes no Vercel, ative um Storage KV/Redis no projeto. O sistema usa automaticamente as variaveis `KV_REST_API_URL` e `KV_REST_API_TOKEN` quando elas existirem.
+
+Sem KV/Redis, o sistema usa memoria temporaria da funcao, que pode resetar e nao e confiavel para solicitacoes pendentes.
 
 Login inicial:
 
@@ -79,6 +81,11 @@ Uma licenca so autoriza quando:
 Cada verificacao salva um check-in em `data/db.json` com IP, horario, conta, robo e resultado.
 
 Quando uma conta ainda nao cadastrada tenta carregar o EA, o sistema cria uma solicitacao pendente com conta, nome, corretora, servidor, robo e chave enviada. No painel, use `Usuarios e licencas > Solicitacoes pendentes` para cadastrar e liberar a licenca.
+
+No endpoint `/api/health`, confira o campo `storage`:
+
+- `kv`: dados persistentes ativos.
+- `memory`: apenas memoria temporaria, nao recomendado para producao.
 
 ## Proximos passos recomendados
 
