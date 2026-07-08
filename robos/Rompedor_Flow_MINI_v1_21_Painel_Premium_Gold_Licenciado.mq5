@@ -44,6 +44,7 @@ string RobotName     = "Rompedor Flow";
 string LicenseKey    = "LIC-ROMPEDOR-FLOW";
 int    LicenseCheckIntervalSeconds = 900; // oculto - revalida licenca e mensagens a cada 15 minutos
 string LastLicenseServerMessage = "";
+datetime LastPerformanceReportAt = 0;
 
 //------------------------- PARÂMETROS ------------------------------
 input group "Configuracao Geral"
@@ -330,6 +331,67 @@ bool VerificarLicencaOnline()
    }
 
    Print("Licenca negada. HTTP=", status, " Resposta=", resposta);
+   return false;
+}
+
+string DataAtualISO()
+{
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   return StringFormat("%04d-%02d-%02d", dt.year, dt.mon, dt.day);
+}
+
+string ValorUrl(double value)
+{
+   return DoubleToString(value, 2);
+}
+
+bool EnviarPerformanceOnline()
+{
+   if(StringLen(LicenseServer) <= 0 || StringLen(LicenseKey) <= 0)
+      return false;
+
+   string server = LicenseServer;
+   while(StringLen(server) > 0 && StringSubstr(server, StringLen(server) - 1, 1) == "/")
+      server = StringSubstr(server, 0, StringLen(server) - 1);
+
+   string account = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+   string url = server + "/api/performance/report?format=text"
+          + "&account=" + UrlEncodeLicenca(account)
+          + "&robot=" + UrlEncodeLicenca(RobotName)
+          + "&key=" + UrlEncodeLicenca(LicenseKey)
+          + "&symbol=" + UrlEncodeLicenca(_Symbol)
+          + "&date=" + UrlEncodeLicenca(DataAtualISO())
+          + "&profitDay=" + UrlEncodeLicenca(ValorUrl(ResultadoDiaRobo()))
+          + "&profitWeek=" + UrlEncodeLicenca(ValorUrl(ResultadoSemanaRobo()))
+          + "&profitMonth=" + UrlEncodeLicenca(ValorUrl(ResultadoMesRobo()))
+          + "&profitTotal=" + UrlEncodeLicenca(ValorUrl(ResultadoTotalRobo()))
+          + "&tradesDay=" + IntegerToString(TradesDiaRobo())
+          + "&volumeDay=" + UrlEncodeLicenca(ValorUrl(VolumeDiaRobo()));
+
+   char post[];
+   char result[];
+   string headers;
+   ResetLastError();
+
+   int status = WebRequest("GET", url, "", 8000, post, result, headers);
+   if(status == -1)
+   {
+      Print("Erro WebRequest ao enviar performance: ", GetLastError());
+      return false;
+   }
+
+   string resposta = CharArrayToString(result);
+   StringTrimLeft(resposta);
+   StringTrimRight(resposta);
+   if(status == 200 && resposta == "OK")
+   {
+      LastPerformanceReportAt = TimeCurrent();
+      Print("Performance enviada para o sistema de licencas. Conta: ", account, " Ativo: ", _Symbol);
+      return true;
+   }
+
+   Print("Performance nao enviada. HTTP=", status, " Resposta=", resposta);
    return false;
 }
 
@@ -888,6 +950,29 @@ int TradesPeriodoRobo(datetime ini, datetime fim)
 int TradesDiaRobo()
 {
    return TradesPeriodoRobo(InicioDoDia(TimeCurrent()), TimeCurrent());
+}
+
+double VolumePeriodoRobo(datetime ini, datetime fim)
+{
+   if(!HistorySelect(ini, fim)) return 0.0;
+   double total = 0.0;
+   for(int i=HistoryDealsTotal()-1; i>=0; i--)
+   {
+      ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0) continue;
+      if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol) continue;
+      if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != NumeroMagico) continue;
+      ENUM_DEAL_ENTRY entradaDeal = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal, DEAL_ENTRY);
+      if(entradaDeal != DEAL_ENTRY_OUT && entradaDeal != DEAL_ENTRY_INOUT && entradaDeal != DEAL_ENTRY_OUT_BY)
+         continue;
+      total += HistoryDealGetDouble(deal, DEAL_VOLUME);
+   }
+   return total;
+}
+
+double VolumeDiaRobo()
+{
+   return VolumePeriodoRobo(InicioDoDia(TimeCurrent()), TimeCurrent());
 }
 
 int TradesSemanaRobo()
@@ -2565,6 +2650,7 @@ int OnInit()
       Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
       return INIT_FAILED;
    }
+   EnviarPerformanceOnline();
    EventSetTimer(LicenseCheckIntervalSeconds);
 
    if(RemoverGradeDoGrafico)
@@ -2601,7 +2687,9 @@ void OnTimer()
       Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
       EventKillTimer();
       ExpertRemove();
+      return;
    }
+   EnviarPerformanceOnline();
 }
 
 void OnDeinit(const int reason)

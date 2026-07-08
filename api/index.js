@@ -4,6 +4,7 @@ const {
   requireAuth,
   buildState,
   checkLicense,
+  reportPerformance,
   createUser,
   createRobot,
   createLicense,
@@ -47,6 +48,18 @@ module.exports = async function handler(req, res) {
         return sendText(res, result.authorized ? 200 : 403, result.authorized ? `AUTHORIZED|${result.expiresAt}|${sanitizeTextMessage(result.message || "")}` : `DENIED|${result.reason}`);
       }
       return sendJson(res, result.authorized ? 200 : 403, result);
+    }
+
+    if (route === "/performance/report") {
+      if (req.method !== "GET" && req.method !== "POST") return methodNotAllowed(res);
+      const url = new URL(req.url, "https://license.local");
+      const input = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await readBody(req);
+      const result = reportPerformance(input, req);
+      await persistDb();
+      if (url.searchParams.get("format") === "text" || input.format === "text") {
+        return sendText(res, result.ok ? 200 : 403, result.ok ? "OK" : `DENIED|${result.error}`);
+      }
+      return sendJson(res, result.ok ? 200 : 403, result);
     }
 
     if (!requireAuth(req, res)) return;

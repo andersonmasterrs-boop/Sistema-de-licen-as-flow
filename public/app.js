@@ -8,8 +8,11 @@ const state = {
 const navItems = [
   ["dashboard", "Dashboard"],
   ["monitor", "Monitor"],
+  ["ranking", "Ranking"],
   ["users", "Usuarios"],
   ["robots", "Robos"],
+  ["performance", "Performance"],
+  ["reports", "Relatorio"],
   ["finance", "Financeiro"],
   ["checks", "Check-ins"]
 ];
@@ -116,8 +119,11 @@ function renderView() {
   const views = {
     dashboard: renderDashboard,
     monitor: renderMonitor,
+    ranking: renderRanking,
     users: renderUsers,
     robots: renderRobots,
+    performance: renderPerformance,
+    reports: renderReports,
     finance: renderFinance,
     checks: renderChecks
   };
@@ -132,6 +138,7 @@ function updateNav() {
 
 function renderDashboard() {
   const s = state.data.summary;
+  const perf = performanceSummary();
   return `
     <section class="panel hero-panel">
       <h1>Painel operacional <span class="badge green">LIVE</span></h1>
@@ -152,6 +159,16 @@ function renderDashboard() {
       <h2>Resumo financeiro</h2>
       <div class="metric"><span>Faturado no mes</span><strong>${money(s.monthRevenue)}</strong></div>
     </section>
+    <section class="panel">
+      <h2>Resultados do dia</h2>
+      <div class="metrics compact">
+        ${metric("Operadores", perf.accounts)}
+        ${metric("Operacoes", perf.trades)}
+        ${metric("Volume", numberBR(perf.volume))}
+        ${metric("Lucro", money(perf.profit))}
+      </div>
+      ${profitChart(perf.dailySeries, "Nenhum resultado enviado pelos robos ainda.")}
+    </section>
   `;
 }
 
@@ -164,6 +181,101 @@ function renderMonitor() {
     </section>
     <section class="cards-list">
       ${checks.map(checkRow).join("") || empty("Nenhum check-in registrado ainda.")}
+    </section>
+  `;
+}
+
+function renderRanking() {
+  const rows = rankingRows("month");
+  const top = rows.slice(0, 3);
+  return `
+    <section class="panel hero-panel">
+      <h1>Ranking do mes</h1>
+      <p class="muted">Contas ordenadas pelo lucro enviado pelos robos.</p>
+    </section>
+    <section class="podium">
+      ${top.map((row, index) => podiumCard(row, index + 1)).join("") || empty("Nenhum resultado para ranquear ainda.")}
+    </section>
+    <section class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Operador</th><th>Conta</th><th>Corretora</th><th>Operacoes</th><th>Volume</th><th>Lucro</th></tr></thead>
+        <tbody>${rows.map((row, index) => `
+          <tr>
+            <td><span class="badge">${index + 1}</span></td>
+            <td>${escapeHtml(row.userName)}</td>
+            <td>${escapeHtml(row.account)}</td>
+            <td>${escapeHtml(row.broker)}</td>
+            <td>${row.trades}</td>
+            <td>${numberBR(row.volume)}</td>
+            <td class="${row.profit >= 0 ? "positive" : "negative"}">${money(row.profit)}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="7">Nenhum resultado recebido.</td></tr>`}</tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderPerformance() {
+  const perf = performanceSummary();
+  const bySymbol = groupPerformanceBySymbol();
+  return `
+    <section class="panel hero-panel">
+      <h1>Performance</h1>
+      <p class="muted">Historico e metricas consolidadas por conta e ativo.</p>
+      <div class="filters">
+        <label>Periodo <select><option>Hoje</option><option>Semana</option><option>Mes</option></select></label>
+        <label>Tipo de conta <select><option>Todos</option><option>Real</option><option>Demo</option></select></label>
+        <label>Ativo <select><option>Todos</option>${bySymbol.map((item) => `<option>${escapeHtml(item.symbol)}</option>`).join("")}</select></label>
+      </div>
+    </section>
+    <section class="metrics">
+      ${metric("Contas", perf.accounts)}
+      ${metric("Operacoes", perf.trades)}
+      ${metric("Volume", numberBR(perf.volume))}
+      ${metric("Lucro", money(perf.profit))}
+    </section>
+    <section class="panel">
+      <h2>Grafico de resultados do dia</h2>
+      ${profitChart(perf.dailySeries, "O grafico aparece quando o EA enviar o primeiro resultado.")}
+    </section>
+    <section class="panel">
+      <h2>Resultados por ativo</h2>
+      <div class="bar-list">${bySymbol.map(symbolBar).join("") || `<div class="muted">Nenhum ativo recebido ainda.</div>`}</div>
+    </section>
+  `;
+}
+
+function renderReports() {
+  const rows = rankingRows("day");
+  const totals = performanceSummary();
+  return `
+    <section class="panel hero-panel">
+      <h1>Relatorio de Pontos</h1>
+      <p class="muted">Resumo operacional por conta, projeto, corretora e ativo.</p>
+    </section>
+    <section class="metrics">
+      ${metric("Operadores", totals.accounts)}
+      ${metric("Operacoes", totals.trades)}
+      ${metric("Volume", numberBR(totals.volume))}
+      ${metric("Lucro", money(totals.profit))}
+    </section>
+    <section class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Cliente</th><th>Conta</th><th>Projeto</th><th>Corretora</th><th>Ops</th><th>Volume</th><th>Lucro</th><th>Ativos</th></tr></thead>
+        <tbody>${rows.map((row, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(row.userName)}</td>
+            <td>${escapeHtml(row.account)}</td>
+            <td>${escapeHtml(row.robot)}</td>
+            <td>${escapeHtml(row.broker)}</td>
+            <td>${row.trades}</td>
+            <td>${numberBR(row.volume)}</td>
+            <td class="${row.profit >= 0 ? "positive" : "negative"}">${money(row.profit)}</td>
+            <td>${escapeHtml(row.symbols.join(", ") || "-")}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="9">Nenhum relatorio recebido.</td></tr>`}</tbody>
+      </table>
     </section>
   `;
 }
@@ -296,7 +408,10 @@ function openUser(userId) {
     <article class="modal-card">
       <div class="actions" style="justify-content: space-between">
         <h2>${escapeHtml(user.name)}</h2>
-        <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+        <div class="actions">
+          <button class="btn btn-blue" onclick="openUserPerformance('${user.id}')">Desempenho</button>
+          <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+        </div>
       </div>
       <form onsubmit="saveUser(event, '${user.id}')">
         <div class="split">
@@ -324,6 +439,38 @@ function openUser(userId) {
       <div class="cards-list" style="margin-top: 16px">
         ${licenses.map(licenseCard).join("") || empty("Nenhum EA vinculado.")}
       </div>
+    </article>
+  `;
+}
+
+function openUserPerformance(userId) {
+  const user = findUser(userId);
+  const reports = performanceReports().filter((item) => item.userId === userId);
+  const totals = summarizeReports(reports);
+  const bySymbol = groupReportsBySymbol(reports);
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>Desempenho - ${escapeHtml(user.name)}</h2>
+        <button class="btn btn-ghost" onclick="openUser('${user.id}')">Voltar</button>
+      </div>
+      <p class="muted">Conta ${escapeHtml(user.account)} - ${escapeHtml(user.broker)}</p>
+      <div class="metrics compact">
+        ${metric("Dia", money(totals.profitDay))}
+        ${metric("Semana", money(totals.profitWeek))}
+        ${metric("Mes", money(totals.profitMonth))}
+        ${metric("Total", money(totals.profitTotal))}
+      </div>
+      <section class="panel inset">
+        <h3>Grafico de resultado diario</h3>
+        ${profitChart(dailySeries(reports), "Nenhum resultado recebido deste usuario ainda.")}
+      </section>
+      <section class="panel inset">
+        <h3>Ativos operados</h3>
+        <div class="bar-list">${bySymbol.map(symbolBar).join("") || `<div class="muted">Nenhum ativo recebido ainda.</div>`}</div>
+      </section>
     </article>
   `;
 }
@@ -490,6 +637,144 @@ function closeModal() {
   document.querySelector("#modal").classList.remove("open");
 }
 
+function performanceReports() {
+  return state.data.performanceReports || [];
+}
+
+function performanceSummary() {
+  const reports = performanceReports();
+  const today = new Date().toISOString().slice(0, 10);
+  const todayReports = reports.filter((item) => item.date === today);
+  const source = todayReports.length ? todayReports : reports;
+  const totals = summarizeReports(source);
+  return {
+    accounts: new Set(source.map((item) => item.account)).size,
+    trades: totals.tradesDay,
+    volume: totals.volumeDay,
+    profit: totals.profitDay,
+    dailySeries: dailySeries(reports)
+  };
+}
+
+function summarizeReports(reports) {
+  return reports.reduce((sum, item) => ({
+    profitDay: sum.profitDay + Number(item.profitDay || 0),
+    profitWeek: sum.profitWeek + Number(item.profitWeek || 0),
+    profitMonth: sum.profitMonth + Number(item.profitMonth || 0),
+    profitTotal: sum.profitTotal + Number(item.profitTotal || 0),
+    tradesDay: sum.tradesDay + Number(item.tradesDay || 0),
+    volumeDay: sum.volumeDay + Number(item.volumeDay || 0)
+  }), { profitDay: 0, profitWeek: 0, profitMonth: 0, profitTotal: 0, tradesDay: 0, volumeDay: 0 });
+}
+
+function dailySeries(reports) {
+  const grouped = new Map();
+  reports.forEach((item) => {
+    grouped.set(item.date, (grouped.get(item.date) || 0) + Number(item.profitDay || 0));
+  });
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-14)
+    .map(([date, profit]) => ({ date, profit }));
+}
+
+function rankingRows(period) {
+  const grouped = new Map();
+  performanceReports().forEach((item) => {
+    const key = `${item.userId}:${item.robotId}`;
+    const current = grouped.get(key) || {
+      account: item.account,
+      userName: item.userName,
+      broker: item.broker,
+      robot: item.robot,
+      profit: 0,
+      trades: 0,
+      volume: 0,
+      symbols: new Set()
+    };
+    current.profit += Number(period === "month" ? item.profitMonth : item.profitDay || 0);
+    current.trades += Number(item.tradesDay || 0);
+    current.volume += Number(item.volumeDay || 0);
+    if (item.symbol) current.symbols.add(item.symbol);
+    grouped.set(key, current);
+  });
+  return Array.from(grouped.values())
+    .map((item) => ({ ...item, symbols: Array.from(item.symbols) }))
+    .sort((a, b) => b.profit - a.profit);
+}
+
+function groupPerformanceBySymbol() {
+  return groupReportsBySymbol(performanceReports());
+}
+
+function groupReportsBySymbol(reports) {
+  const grouped = new Map();
+  reports.forEach((item) => {
+    const symbol = item.symbol || "-";
+    const current = grouped.get(symbol) || { symbol, profit: 0, trades: 0, volume: 0, accounts: new Set() };
+    current.profit += Number(item.profitDay || 0);
+    current.trades += Number(item.tradesDay || 0);
+    current.volume += Number(item.volumeDay || 0);
+    current.accounts.add(item.account);
+    grouped.set(symbol, current);
+  });
+  return Array.from(grouped.values())
+    .map((item) => ({ ...item, accounts: item.accounts.size }))
+    .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit));
+}
+
+function profitChart(series, emptyText) {
+  if (!series.length) return `<div class="chart-empty">${emptyText}</div>`;
+  const width = 720;
+  const height = 220;
+  const pad = 28;
+  const maxAbs = Math.max(...series.map((item) => Math.abs(item.profit)), 1);
+  const step = (width - pad * 2) / Math.max(series.length - 1, 1);
+  const zeroY = height / 2;
+  const points = series.map((item, index) => {
+    const x = pad + index * step;
+    const y = zeroY - (item.profit / maxAbs) * (height / 2 - pad);
+    return { ...item, x, y };
+  });
+  const path = points.map((point, index) => `${index ? "L" : "M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+  return `
+    <div class="chart-wrap">
+      <svg class="profit-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafico de lucro por dia">
+        <line x1="${pad}" y1="${zeroY}" x2="${width - pad}" y2="${zeroY}" class="chart-zero"></line>
+        <path d="${path}" class="chart-line"></path>
+        ${points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="4" class="${point.profit >= 0 ? "chart-dot positive-dot" : "chart-dot negative-dot"}"></circle>`).join("")}
+        ${points.map((point, index) => index % Math.ceil(points.length / 6) === 0 ? `<text x="${point.x}" y="${height - 6}" text-anchor="middle">${escapeHtml(point.date.slice(5))}</text>` : "").join("")}
+      </svg>
+    </div>
+  `;
+}
+
+function podiumCard(row, place) {
+  return `
+    <article class="podium-card place-${place}">
+      <span class="badge">${place}o</span>
+      <div class="avatar">${initials(row.userName)}</div>
+      <h3>${escapeHtml(row.userName)}</h3>
+      <p class="muted">${escapeHtml(row.broker)}</p>
+      <strong class="${row.profit >= 0 ? "positive" : "negative"}">${money(row.profit)}</strong>
+      <div class="muted">${row.trades} ops - ${numberBR(row.volume)} vol</div>
+    </article>
+  `;
+}
+
+function symbolBar(item) {
+  const max = Math.max(...groupPerformanceBySymbol().map((entry) => Math.abs(entry.profit)), Math.abs(item.profit), 1);
+  const width = Math.max(6, Math.round((Math.abs(item.profit) / max) * 100));
+  return `
+    <div class="bar-row">
+      <strong>${escapeHtml(item.symbol)}</strong>
+      <div class="bar-track"><span style="width:${width}%" class="${item.profit >= 0 ? "bar-positive" : "bar-negative"}"></span></div>
+      <span>${money(item.profit)}</span>
+      <span class="muted">${item.trades} ops</span>
+    </div>
+  `;
+}
+
 function metric(label, value) {
   return `<article class="metric"><span>${label}</span><strong>${value}</strong></article>`;
 }
@@ -531,6 +816,10 @@ function money(value) {
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function numberBR(value) {
+  return Number(value || 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("pt-BR");
@@ -559,4 +848,14 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, "&#096;");
+}
+
+function initials(name) {
+  return String(name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
