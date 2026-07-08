@@ -37,12 +37,13 @@ enum ModoStopCestaReversao
    STOP_X_PONTOS_REVERSAO  = 2        // Stopa X pontos contra o preço/linha da reversão
 };
 
-//------------------------- PARÂMETROS ------------------------------
-input group "Licenciamento"
-input string LicenseServer = "https://sistema-de-licen-as-flow.vercel.app";
-input string RobotName     = "Rompedor Flow";
-input string LicenseKey    = "LIC-19485815-ROMPEDOR-FLOW";
+//------------------------- LICENCIAMENTO ---------------------------
+// Campos internos: nao aparecem nos parametros do robo compilado.
+string LicenseServer = "https://sistema-de-licen-as-flow.vercel.app";
+string RobotName     = "Rompedor Flow";
+string LicenseKey    = "LIC-ROMPEDOR-FLOW";
 
+//------------------------- PARÂMETROS ------------------------------
 input group "Configuracao Geral"
 input ulong  NumeroMagico              = 26051401;
 input string ComentarioOrdens          = "ROMPEDOR_FLOW";

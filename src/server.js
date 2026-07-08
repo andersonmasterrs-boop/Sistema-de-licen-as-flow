@@ -396,7 +396,7 @@ function ensureDatabase() {
       createLicense({
         userId: userOne.id,
         robotId: robotOne.id,
-        key: "LIC-19485815-ROMPEDOR-FLOW",
+        key: "LIC-ROMPEDOR-FLOW",
         status: "active",
         type: "REAL",
         price: 497,

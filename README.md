@@ -61,7 +61,7 @@ ADMIN_USER=andre ADMIN_PASSWORD=sua-senha APP_PORT=3000 npm start
 Endpoint principal:
 
 ```text
-GET /api/license/check?account=19485815&name=Nome%20do%20Cliente&robot=Rompedor%20Flow&key=LIC-19485815-ROMPEDOR-FLOW&broker=XP&server=ServidorMT5
+GET /api/license/check?account=19485815&name=Nome%20do%20Cliente&robot=Rompedor%20Flow&key=LIC-ROMPEDOR-FLOW&broker=XP&server=ServidorMT5
 ```
 
 Resposta JSON quando autorizado:
@@ -79,7 +79,7 @@ Resposta JSON quando autorizado:
 Para EAs que preferem resposta simples:
 
 ```text
-GET /api/license/check?account=19485815&name=Nome%20do%20Cliente&robot=Rompedor%20Flow&key=LIC-19485815-ROMPEDOR-FLOW&format=text
+GET /api/license/check?account=19485815&name=Nome%20do%20Cliente&robot=Rompedor%20Flow&key=LIC-ROMPEDOR-FLOW&format=text
 ```
 
 Retorna `AUTHORIZED|2027-06-16T14:31:00.000Z` ou `DENIED|MOTIVO`.
