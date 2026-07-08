@@ -20,11 +20,28 @@ http://localhost:3000
 
 Este primeiro MVP usa `data/db.json` como armazenamento local, criado automaticamente ao iniciar o servidor. Isso e otimo para validar o fluxo e testar o EA, mas nao e persistente no Vercel.
 
-Para rodar em producao no Vercel, o proximo passo tecnico e trocar o armazenamento local por um banco externo, como Supabase ou Neon Postgres. O painel web ja fica em `public/`, e a regra de licenca ja esta concentrada em `src/server.js`, pronta para ser separada em funcoes serverless quando o banco estiver definido.
+Para rodar em producao no Vercel, configure um banco externo. O caminho recomendado neste projeto e Supabase.
 
-O projeto tambem inclui uma funcao serverless unica em `api/index.js` para rodar no Vercel. Para dados permanentes no Vercel, ative um Storage KV/Redis no projeto. O sistema usa automaticamente as variaveis `KV_REST_API_URL` e `KV_REST_API_TOKEN` quando elas existirem.
+O projeto tambem inclui uma funcao serverless unica em `api/index.js` para rodar no Vercel. Para dados permanentes, o sistema usa automaticamente Supabase quando as variaveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` existirem.
 
-Sem KV/Redis, o sistema usa memoria temporaria da funcao, que pode resetar e nao e confiavel para solicitacoes pendentes.
+Como alternativa, tambem aceita Vercel KV/Upstash com `KV_REST_API_URL` e `KV_REST_API_TOKEN`. Sem Supabase/KV, o sistema usa memoria temporaria da funcao, que pode resetar e nao e confiavel para solicitacoes pendentes.
+
+## Supabase
+
+1. Crie um projeto gratuito no Supabase.
+2. Abra o SQL Editor.
+3. Execute o arquivo `supabase/schema.sql`.
+4. No Supabase, copie:
+   - Project URL
+   - service_role key
+5. No Vercel, em `Settings > Environment Variables`, cadastre:
+
+```text
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
+```
+
+6. Faca redeploy no Vercel.
 
 Login inicial:
 
@@ -84,6 +101,7 @@ Quando uma conta ainda nao cadastrada tenta carregar o EA, o sistema cria uma so
 
 No endpoint `/api/health`, confira o campo `storage`:
 
+- `supabase`: dados persistentes ativos via Supabase.
 - `kv`: dados persistentes ativos.
 - `memory`: apenas memoria temporaria, nao recomendado para producao.
 
