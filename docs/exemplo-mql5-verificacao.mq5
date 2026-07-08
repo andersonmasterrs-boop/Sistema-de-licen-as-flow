@@ -1,4 +1,4 @@
-input string LicenseServer = "https://seu-projeto.vercel.app";
+input string LicenseServer = "https://sistema-de-licen-as-flow.vercel.app";
 input string RobotName = "Rompedor Flow";
 input string LicenseKey = "LIC-19485815-ROMPEDOR-FLOW";
 

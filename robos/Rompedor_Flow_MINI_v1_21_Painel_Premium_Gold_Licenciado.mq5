@@ -39,7 +39,7 @@ enum ModoStopCestaReversao
 
 //------------------------- PARÂMETROS ------------------------------
 input group "Licenciamento"
-input string LicenseServer = "https://sistema-de-licen-as-flow-git-main-andersons-projects-97f09a81.vercel.app";
+input string LicenseServer = "https://sistema-de-licen-as-flow.vercel.app";
 input string RobotName     = "Rompedor Flow";
 input string LicenseKey    = "LIC-19485815-ROMPEDOR-FLOW";
 
