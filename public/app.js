@@ -47,7 +47,7 @@ function render() {
     <header class="topbar">
       <div class="brand">Licencas EA</div>
       <nav class="nav">
-        ${navItems.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" onclick="go('${id}')">${label}</button>`).join("")}
+        ${navItems.map(([id, label]) => `<button data-view="${id}" class="${state.view === id ? "active" : ""}" onclick="go('${id}')">${label}</button>`).join("")}
       </nav>
       <button class="btn btn-ghost" onclick="logout()">Sair</button>
     </header>
@@ -98,14 +98,21 @@ function logout() {
   render();
 }
 
-function go(view) {
+async function go(view) {
   state.view = view;
-  renderView();
+  updateNav();
+  try {
+    await loadState();
+    renderView();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function renderView() {
   const content = document.querySelector("#content");
   if (!content || !state.data) return;
+  updateNav();
   const views = {
     dashboard: renderDashboard,
     monitor: renderMonitor,
@@ -115,6 +122,12 @@ function renderView() {
     checks: renderChecks
   };
   content.innerHTML = views[state.view]();
+}
+
+function updateNav() {
+  document.querySelectorAll(".nav button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === state.view);
+  });
 }
 
 function renderDashboard() {

@@ -14,20 +14,8 @@
   ],
   "routes": [
     {
-      "src": "/api/users/([^/]+)",
-      "dest": "/api/users/[id].js"
-    },
-    {
-      "src": "/api/robots/([^/]+)",
-      "dest": "/api/robots/[id].js"
-    },
-    {
-      "src": "/api/licenses/([^/]+)",
-      "dest": "/api/licenses/[id].js"
-    },
-    {
       "src": "/api/(.*)",
-      "dest": "/api/$1.js"
+      "dest": "/api/index.js?path=$1"
     },
     {
       "src": "/(.*\\.(?:css|js|png|jpg|jpeg|svg|ico))",
