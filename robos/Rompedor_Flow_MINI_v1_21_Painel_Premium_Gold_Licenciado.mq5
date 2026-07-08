@@ -42,6 +42,8 @@ enum ModoStopCestaReversao
 string LicenseServer = "https://sistema-de-licen-as-flow.vercel.app";
 string RobotName     = "Rompedor Flow";
 string LicenseKey    = "LIC-ROMPEDOR-FLOW";
+int    LicenseCheckIntervalSeconds = 900; // oculto - revalida licenca e mensagens a cada 15 minutos
+string LastLicenseServerMessage = "";
 
 //------------------------- PARÂMETROS ------------------------------
 input group "Configuracao Geral"
@@ -317,7 +319,11 @@ bool VerificarLicencaOnline()
          if(StringLen(mensagemServidor) > 0)
          {
             Print("Mensagem do servidor: ", mensagemServidor);
-            Alert(RobotName, ": ", mensagemServidor);
+            if(mensagemServidor != LastLicenseServerMessage)
+            {
+               LastLicenseServerMessage = mensagemServidor;
+               Alert(RobotName, ": ", mensagemServidor);
+            }
          }
       }
       return true;
@@ -2559,6 +2565,7 @@ int OnInit()
       Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
       return INIT_FAILED;
    }
+   EventSetTimer(LicenseCheckIntervalSeconds);
 
    if(RemoverGradeDoGrafico)
       ChartSetInteger(0, CHART_SHOW_GRID, false);
@@ -2587,8 +2594,19 @@ void OnTick()
    AtualizarPainel();
 }
 
+void OnTimer()
+{
+   if(!VerificarLicencaOnline())
+   {
+      Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
+      EventKillTimer();
+      ExpertRemove();
+   }
+}
+
 void OnDeinit(const int reason)
 {
+   EventKillTimer();
    // Mantém os desenhos no gráfico para estudo visual.
 }
 //+------------------------------------------------------------------+
