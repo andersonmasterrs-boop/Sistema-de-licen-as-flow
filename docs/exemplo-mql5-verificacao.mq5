@@ -23,11 +23,15 @@ string UrlEncode(string value)
 bool VerificarLicenca()
 {
    string account = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+   string accountName = AccountInfoString(ACCOUNT_NAME);
    string broker = AccountInfoString(ACCOUNT_COMPANY);
+   string accountServer = AccountInfoString(ACCOUNT_SERVER);
    string url = LicenseServer + "/api/license/check?format=text"
                 + "&account=" + UrlEncode(account)
+                + "&name=" + UrlEncode(accountName)
                 + "&robot=" + UrlEncode(RobotName)
                 + "&broker=" + UrlEncode(broker)
+                + "&server=" + UrlEncode(accountServer)
                 + "&key=" + UrlEncode(LicenseKey);
 
    char post[];

@@ -65,8 +65,10 @@ function buildState() {
       activeLicenses: activeLicenses.length,
       robots: db.robots.length,
       monthRevenue,
-      checksToday: db.checkIns.filter((item) => item.at.slice(0, 10) === now.toISOString().slice(0, 10)).length
+      checksToday: db.checkIns.filter((item) => item.at.slice(0, 10) === now.toISOString().slice(0, 10)).length,
+      pendingRequests: (db.pendingRequests || []).filter((request) => !request.resolvedAt).length
     },
+    pendingRequests: (db.pendingRequests || []).filter((request) => !request.resolvedAt).slice(0, 80),
     users: db.users,
     robots: db.robots.map((robot) => ({
       ...robot,
@@ -82,7 +84,10 @@ function checkLicense(input, req) {
   const account = String(input.account || "").trim();
   const robotName = String(input.robot || "").trim();
   const key = String(input.key || "").trim();
-  const broker = String(input.broker || "").trim().toLowerCase();
+  const brokerRaw = String(input.broker || "").trim();
+  const broker = brokerRaw.toLowerCase();
+  const accountName = String(input.name || input.accountName || "").trim();
+  const accountServer = String(input.server || input.accountServer || "").trim();
   const now = new Date();
   const base = {
     ok: false,
@@ -91,22 +96,26 @@ function checkLicense(input, req) {
     serverTime: now.toISOString(),
     expiresAt: null,
     robot: robotName,
-    account
+    account,
+    accountName,
+    broker: brokerRaw,
+    accountServer,
+    key
   };
 
   if (!account || !robotName || !key) return saveCheckIn(db, base, req);
 
   const user = db.users.find((item) => String(item.account) === account);
-  if (!user) return saveCheckIn(db, { ...base, reason: "ACCOUNT_NOT_FOUND" }, req);
+  if (!user) return savePendingRequest(db, saveCheckIn(db, { ...base, reason: "ACCOUNT_NOT_FOUND" }, req));
   if (broker && !String(user.broker || "").toLowerCase().includes(broker)) {
-    return saveCheckIn(db, { ...base, reason: "BROKER_MISMATCH", userId: user.id }, req);
+    return savePendingRequest(db, saveCheckIn(db, { ...base, reason: "BROKER_MISMATCH", userId: user.id }, req));
   }
 
   const robot = db.robots.find((item) => item.name.toLowerCase() === robotName.toLowerCase());
-  if (!robot) return saveCheckIn(db, { ...base, reason: "ROBOT_NOT_FOUND", userId: user.id }, req);
+  if (!robot) return savePendingRequest(db, saveCheckIn(db, { ...base, reason: "ROBOT_NOT_FOUND", userId: user.id }, req));
 
   const license = db.licenses.find((item) => item.userId === user.id && item.robotId === robot.id && item.key === key);
-  if (!license) return saveCheckIn(db, { ...base, reason: "LICENSE_NOT_FOUND", userId: user.id, robotId: robot.id }, req);
+  if (!license) return savePendingRequest(db, saveCheckIn(db, { ...base, reason: "LICENSE_NOT_FOUND", userId: user.id, robotId: robot.id }, req));
   if (license.status !== "active") {
     return saveCheckIn(db, { ...base, reason: "LICENSE_INACTIVE", userId: user.id, robotId: robot.id, licenseId: license.id }, req);
   }
@@ -135,6 +144,10 @@ function saveCheckIn(db, result, req) {
     at: new Date().toISOString(),
     ip: req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "",
     account: result.account,
+    accountName: result.accountName || "",
+    broker: result.broker || "",
+    accountServer: result.accountServer || "",
+    key: result.key || "",
     robot: result.robot,
     authorized: result.authorized,
     reason: result.reason,
@@ -143,6 +156,45 @@ function saveCheckIn(db, result, req) {
     licenseId: result.licenseId || null
   });
   db.checkIns = db.checkIns.slice(0, 500);
+  return result;
+}
+
+function savePendingRequest(db, result) {
+  if (!result.account || !result.robot) return result;
+  db.pendingRequests = db.pendingRequests || [];
+
+  const existing = db.pendingRequests.find((request) =>
+    !request.resolvedAt &&
+    request.account === result.account &&
+    request.robot === result.robot
+  );
+
+  if (existing) {
+    existing.accountName = result.accountName || existing.accountName || "";
+    existing.broker = result.broker || existing.broker || "";
+    existing.accountServer = result.accountServer || existing.accountServer || "";
+    existing.key = result.key || existing.key || "";
+    existing.reason = result.reason;
+    existing.lastSeenAt = new Date().toISOString();
+    existing.attempts = Number(existing.attempts || 1) + 1;
+    return result;
+  }
+
+  db.pendingRequests.unshift({
+    id: createId("req"),
+    account: result.account,
+    accountName: result.accountName || "",
+    broker: result.broker || "",
+    accountServer: result.accountServer || "",
+    key: result.key || "",
+    robot: result.robot,
+    reason: result.reason,
+    attempts: 1,
+    firstSeenAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+    resolvedAt: null
+  });
+  db.pendingRequests = db.pendingRequests.slice(0, 200);
   return result;
 }
 
@@ -158,6 +210,14 @@ function createUser(body) {
     createdAt: now,
     updatedAt: now
   };
+}
+
+function resolvePendingRequestsForAccount(account) {
+  const db = getDb();
+  db.pendingRequests = db.pendingRequests || [];
+  db.pendingRequests.forEach((request) => {
+    if (request.account === String(account)) request.resolvedAt = new Date().toISOString();
+  });
 }
 
 function createRobot(body) {
@@ -333,7 +393,8 @@ function createInitialDb() {
         updatedAt: "2026-06-16T14:31:00.000Z"
       }
     ],
-    checkIns: []
+    checkIns: [],
+    pendingRequests: []
   };
 }
 
@@ -344,6 +405,7 @@ module.exports = {
   buildState,
   checkLicense,
   createUser,
+  resolvePendingRequestsForAccount,
   createRobot,
   createLicense,
   updateById,

@@ -133,6 +133,7 @@ function renderDashboard() {
       ${metric("Licencas ativas", s.activeLicenses)}
       ${metric("Robos", s.robots)}
       ${metric("Checks hoje", s.checksToday)}
+      ${metric("Pendentes", s.pendingRequests || 0)}
     </section>
     <section class="panel">
       <h2>Resumo financeiro</h2>
@@ -156,7 +157,29 @@ function renderMonitor() {
 
 function renderUsers() {
   const users = state.data.users;
+  const pending = state.data.pendingRequests || [];
   return `
+    ${pending.length ? `
+      <section class="panel">
+        <h1>Solicitacoes pendentes</h1>
+        <p class="muted">Contas que colocaram o robo no grafico e ainda nao possuem licenca liberada.</p>
+        <div class="cards-list">
+          ${pending.map((request) => `
+            <article class="robot-row">
+              <div>
+                <strong>${escapeHtml(request.accountName || `Conta ${request.account}`)}</strong>
+                <span class="badge">${escapeHtml(request.account)}</span>
+                <span class="badge">${escapeHtml(request.robot)}</span>
+                <span class="badge red">${escapeHtml(request.reason)}</span>
+                <div class="muted">${escapeHtml(request.broker || "-")} ${request.accountServer ? `- ${escapeHtml(request.accountServer)}` : ""}</div>
+                <div class="muted">Chave enviada: ${escapeHtml(request.key || "-")} - Tentativas: ${request.attempts || 1}</div>
+              </div>
+              <button class="btn btn-red" onclick="approvePending('${request.id}')">Cadastrar e liberar 1 ano</button>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    ` : ""}
     <section class="panel">
       <h1>Usuarios e licencas</h1>
       <form class="actions" onsubmit="createUser(event)">
@@ -316,6 +339,45 @@ async function createUser(event) {
   await api("/api/users", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())) });
   toast("Usuario adicionado");
   await reload();
+}
+
+async function approvePending(requestId) {
+  const request = (state.data.pendingRequests || []).find((item) => item.id === requestId);
+  if (!request) return toast("Solicitacao nao encontrada");
+
+  const userPayload = {
+    account: request.account,
+    name: request.accountName || `Conta ${request.account}`,
+    broker: request.broker || request.accountServer || "-",
+    type: "Real",
+    notes: `Criado automaticamente pela tentativa de uso do ${request.robot}.`
+  };
+  const userResponse = await api("/api/users", { method: "POST", body: JSON.stringify(userPayload) });
+  const robot = state.data.robots.find((item) => item.name.toLowerCase() === String(request.robot || "").toLowerCase());
+
+  if (robot) {
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    await api("/api/licenses", {
+      method: "POST",
+      body: JSON.stringify({
+        userId: userResponse.user.id,
+        robotId: robot.id,
+        key: request.key || `LIC-${request.account}-${robot.name.replace(/[^a-z0-9]/gi, "").toUpperCase()}`,
+        status: "active",
+        type: "REAL",
+        price: 0,
+        paidAt: new Date().toISOString().slice(0, 10),
+        expiresAt: expiresAt.toISOString()
+      })
+    });
+    toast("Conta cadastrada e licenca liberada");
+  } else {
+    toast("Conta cadastrada. Cadastre o robo para liberar a licenca.");
+  }
+
+  await reload();
+  openUser(userResponse.user.id);
 }
 
 async function saveUser(event, userId) {

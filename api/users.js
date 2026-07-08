@@ -1,4 +1,4 @@
-const { getDb, requireAuth, createUser, methodNotAllowed, readBody, sendJson } = require("./_lib/store");
+const { getDb, requireAuth, createUser, resolvePendingRequestsForAccount, methodNotAllowed, readBody, sendJson } = require("./_lib/store");
 
 module.exports = async function handler(req, res) {
   if (!requireAuth(req, res)) return;
@@ -8,6 +8,7 @@ module.exports = async function handler(req, res) {
   if (req.method === "POST") {
     const user = createUser(await readBody(req));
     db.users.unshift(user);
+    resolvePendingRequestsForAccount(user.account);
     return sendJson(res, 201, { ok: true, user });
   }
 

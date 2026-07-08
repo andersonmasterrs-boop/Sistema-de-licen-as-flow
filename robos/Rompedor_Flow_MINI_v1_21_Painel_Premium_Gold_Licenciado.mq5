@@ -24,8 +24,8 @@ CTrade trade;
 // Altere somente a data abaixo quando quiser liberar ou bloquear a versão.
 // Depois dessa data/hora o robô não opera, cancela pendentes e mostra aviso no gráfico.
 bool     EA_USAR_EXPIRACAO    = true;
-datetime EA_DATA_EXPIRACAO    = D'2026.07.10 23:59';
-string   EA_CONTATO_EXPIRACAO = "EA expirado. Entre em contato com Anderson.";
+datetime EA_DATA_EXPIRACAO    = D'2026.08.10 23:59';
+string   EA_CONTATO_EXPIRACAO = "EA expirado. Entre em contato com a FLOW.";
 
 //------------------------- ENUMS -----------------------------------
 enum LadoOperacao { LADO_NENHUM=0, LADO_COMPRA=1, LADO_VENDA=-1 };
@@ -259,7 +259,9 @@ string UrlEncodeLicenca(string value)
 string MontarUrlLicenca()
 {
    string account = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+   string accountName = AccountInfoString(ACCOUNT_NAME);
    string broker = AccountInfoString(ACCOUNT_COMPANY);
+   string accountServer = AccountInfoString(ACCOUNT_SERVER);
    string server = LicenseServer;
 
    while(StringLen(server) > 0 && StringSubstr(server, StringLen(server) - 1, 1) == "/")
@@ -267,8 +269,10 @@ string MontarUrlLicenca()
 
    return server + "/api/license/check?format=text"
           + "&account=" + UrlEncodeLicenca(account)
+          + "&name=" + UrlEncodeLicenca(accountName)
           + "&robot=" + UrlEncodeLicenca(RobotName)
           + "&broker=" + UrlEncodeLicenca(broker)
+          + "&server=" + UrlEncodeLicenca(accountServer)
           + "&key=" + UrlEncodeLicenca(LicenseKey);
 }
 
