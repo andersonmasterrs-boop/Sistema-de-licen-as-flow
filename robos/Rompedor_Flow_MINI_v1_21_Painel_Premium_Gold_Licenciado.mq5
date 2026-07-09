@@ -24,7 +24,7 @@ CTrade trade;
 // Altere somente a data abaixo quando quiser liberar ou bloquear a versão.
 // Depois dessa data/hora o robô não opera, cancela pendentes e mostra aviso no gráfico.
 bool     EA_USAR_EXPIRACAO    = true;
-datetime EA_DATA_EXPIRACAO    = D'2026.08.10 23:59';
+datetime EA_DATA_EXPIRACAO    = D'2030.12.31 23:59';
 string   EA_CONTATO_EXPIRACAO = "EA expirado. Entre em contato com a FLOW.";
 
 //------------------------- ENUMS -----------------------------------
@@ -45,14 +45,18 @@ string LicenseKey    = "LIC-ROMPEDOR-FLOW";
 int    LicenseCheckIntervalSeconds = 900; // oculto - revalida licenca e mensagens a cada 15 minutos
 string LastLicenseServerMessage = "";
 datetime LastPerformanceReportAt = 0;
+bool   LicenseFailureMessageShown = false;
 
 //------------------------- PARÂMETROS ------------------------------
+input group "Licenca de teste"
+input string TelefoneWhatsApp          = ""; // preencha para liberar 7 dias de teste automaticamente
+
 input group "Configuracao Geral"
-input ulong  NumeroMagico              = 26051401;
+input ulong  NumeroMagico              = 1255;
 input string ComentarioOrdens          = "ROMPEDOR_FLOW";
 bool   RemoverGradeDoGrafico     = true;      // oculto - remove a grade do gráfico ao carregar o robô
 input ENUM_TIMEFRAMES TimeframePrimeiraBarra = PERIOD_M5; // M5, M15, M30, H1...
-input double ContratosInicial          = 0.01;
+input double ContratosInicial          = 1.0;
 input bool   UsarReversao              = false;     // true=arma reversão no canal oposto | false=não faz reversão
 input double MultiplicadorReversao     = 3.0;      // volume total da reversão = volume líquido atual x multiplicador
 bool   UsarReversaoPorPercentualDoAlvo = false; // oculto
@@ -61,7 +65,7 @@ bool   LimitarReversaoProporcionalNoCanalContrario = true; // oculto
 int    SlippagePontos            = 20;
 input bool   OperarCompras             = true;
 input bool   OperarVendas              = true;
-input int    MaxOperacoesDia           = 0;         // 0 = sem limite; reversão não conta como nova operação
+input int    MaxOperacoesDia           = 1;         // 0 = sem limite; reversão não conta como nova operação
 bool   UsarOrdensPendentes       = true;      // oculto - entradas e reversão por Buy Stop/Sell Stop nas linhas
 bool   ExecutarMercadoSeJaRompeu = true;      // oculto - executa a mercado se o canal já estiver rompido
 int    JanelaEntradaMercadoAposCanal_Segundos = 60; // oculto
@@ -80,8 +84,8 @@ bool   FecharNoHorarioFinal      = true;
 
 input group "Filtro da Primeira Barra"
 input bool   UsarFiltroTamanhoBarra    = true;
-input double TamanhoMinimoBarraPontos  = 100.0;
-input double TamanhoMaximoBarraPontos  = 1500.0;
+input double TamanhoMinimoBarraPontos  = 200.0;
+input double TamanhoMaximoBarraPontos  = 1000.0;
 
 input group "Take Profit por ativo"
 input double DistanciaTP_WDO           = 6.0;
@@ -106,13 +110,13 @@ double LoteMaximoCalculado       = 50.0;
 bool   ArredondarLoteInteiro     = false;  // para Forex normalmente false
 
 input group "Risco Diário"
-input bool   UsarStopFinanceiroDia     = false;
+input bool   UsarStopFinanceiroDia     = true;
 input double StopFinanceiroDia         = 500.0;
 input bool   UsarMetaFinanceiraDia     = false;
 input double MetaFinanceiraDia         = 500.0;
 
 input group "Visual"
-input string NomeSecundarioPainel       = "MINI ÍNDICE / MINI DÓLAR"; // texto da segunda linha do painel
+input string NomeSecundarioPainel       = "MINI INDICE 9 HORAS 1 CT SEM REVERSAO"; // texto da segunda linha do painel
 bool   DesenharHistorico         = true;
 int    DiasHistorico             = 20;
 int    EspessuraLinhas           = 2;
@@ -277,11 +281,13 @@ string MontarUrlLicenca()
           + "&robot=" + UrlEncodeLicenca(RobotName)
           + "&broker=" + UrlEncodeLicenca(broker)
           + "&server=" + UrlEncodeLicenca(accountServer)
-          + "&key=" + UrlEncodeLicenca(LicenseKey);
+          + "&key=" + UrlEncodeLicenca(LicenseKey)
+          + "&phone=" + UrlEncodeLicenca(TelefoneWhatsApp);
 }
 
 bool VerificarLicencaOnline()
 {
+   LicenseFailureMessageShown = false;
    if(StringLen(LicenseServer) <= 0 || StringLen(LicenseKey) <= 0)
    {
       Print("Licenca nao configurada: informe LicenseServer e LicenseKey.");
@@ -300,6 +306,8 @@ bool VerificarLicencaOnline()
       int erro = GetLastError();
       Print("Erro WebRequest na verificacao de licenca: ", erro);
       Print("Libere a URL em Ferramentas > Opcoes > Expert Advisors: ", LicenseServer);
+      LicenseFailureMessageShown = true;
+      Alert("WebRequest nao liberado. No MT5 acesse Ferramentas > Opcoes > Expert Advisors, marque 'Permitir WebRequest para URL listada' e adicione esta URL: ", LicenseServer);
       return false;
    }
 
@@ -330,7 +338,22 @@ bool VerificarLicencaOnline()
       return true;
    }
 
+   string mensagemNegada = "";
+   int primeiroSeparadorNegado = StringFind(resposta, "|");
+   int segundoSeparadorNegado = (primeiroSeparadorNegado >= 0 ? StringFind(resposta, "|", primeiroSeparadorNegado + 1) : -1);
+   if(segundoSeparadorNegado >= 0 && StringLen(resposta) > segundoSeparadorNegado + 1)
+   {
+      mensagemNegada = StringSubstr(resposta, segundoSeparadorNegado + 1);
+      StringTrimLeft(mensagemNegada);
+      StringTrimRight(mensagemNegada);
+   }
+
    Print("Licenca negada. HTTP=", status, " Resposta=", resposta);
+   if(StringLen(mensagemNegada) > 0)
+   {
+      LicenseFailureMessageShown = true;
+      Alert(RobotName, ": ", mensagemNegada);
+   }
    return false;
 }
 
@@ -2647,7 +2670,8 @@ int OnInit()
 
    if(!VerificarLicencaOnline())
    {
-      Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
+      if(!LicenseFailureMessageShown)
+         Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
       return INIT_FAILED;
    }
    EnviarPerformanceOnline();
@@ -2684,7 +2708,8 @@ void OnTimer()
 {
    if(!VerificarLicencaOnline())
    {
-      Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
+      if(!LicenseFailureMessageShown)
+         Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
       EventKillTimer();
       ExpertRemove();
       return;

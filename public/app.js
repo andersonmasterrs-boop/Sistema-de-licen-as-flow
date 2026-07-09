@@ -345,6 +345,8 @@ function renderUsers() {
                 <span class="badge">${escapeHtml(request.robot)}</span>
                 <span class="badge red">${escapeHtml(request.reason)}</span>
                 <div class="muted">${escapeHtml(request.broker || "-")} ${request.accountServer ? `- ${escapeHtml(request.accountServer)}` : ""}</div>
+                ${request.phone ? `<div class="muted">Telefone/WhatsApp: ${escapeHtml(request.phone)}</div>` : ""}
+                ${request.message ? `<div class="muted">${escapeHtml(request.message)}</div>` : ""}
                 <div class="muted">Chave enviada: ${escapeHtml(request.key || "-")} - Tentativas: ${request.attempts || 1}</div>
               </div>
               <button class="btn btn-red" onclick="approvePending('${request.id}')">Cadastrar e liberar 1 ano</button>

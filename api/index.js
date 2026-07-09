@@ -47,7 +47,7 @@ module.exports = async function handler(req, res) {
       await persistDb();
 
       if (url.searchParams.get("format") === "text" || input.format === "text") {
-        return sendText(res, result.authorized ? 200 : 403, result.authorized ? `AUTHORIZED|${result.expiresAt}|${sanitizeTextMessage(result.message || "")}` : `DENIED|${result.reason}`);
+        return sendText(res, result.authorized ? 200 : 403, result.authorized ? `AUTHORIZED|${result.expiresAt}|${sanitizeTextMessage(result.message || "")}` : `DENIED|${result.reason}|${sanitizeTextMessage(result.message || "")}`);
       }
       return sendJson(res, result.authorized ? 200 : 403, result);
     }
