@@ -361,20 +361,25 @@ function renderUsers() {
         <label>Conta <input name="account" required></label>
         <label>Usuario <input name="name" required></label>
         <label>Corretora <input name="broker" required></label>
+        <label>Telefone <input name="phone" placeholder="WhatsApp"></label>
+        <label>Status <select name="status"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label>
         <label>Tipo <select name="type"><option>Real</option><option>Demo</option></select></label>
         <button class="btn btn-red" type="submit">Adicionar</button>
       </form>
     </section>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>Conta</th><th>Usuario</th><th>Tipo</th><th>Corretora</th><th>Licencas</th><th>Editar</th></tr></thead>
+        <thead><tr><th>Conta</th><th>Usuario</th><th>Telefone</th><th>Status</th><th>Tipo</th><th>Corretora</th><th>Licencas</th><th>Editar</th></tr></thead>
         <tbody>
           ${users.map((user) => {
             const licenses = state.data.licenses.filter((license) => license.userId === user.id);
             const expired = licenses.some((license) => new Date(license.expiresAt) < new Date());
+            const active = (user.status || "active") === "active";
             return `<tr class="${expired ? "warn" : ""}">
               <td><strong>${escapeHtml(user.account)}</strong></td>
               <td>${escapeHtml(user.name)}</td>
+              <td>${escapeHtml(user.phone || "-")}</td>
+              <td><span class="badge ${active ? "green" : "red"}">${active ? "Ativo" : "Inativo"}</span></td>
               <td><span class="badge green">${escapeHtml(user.type)}</span></td>
               <td>${escapeHtml(user.broker)}</td>
               <td>${licenses.length}</td>
@@ -500,12 +505,17 @@ function openUser(userId) {
           <label>Conta <input name="account" value="${escapeAttr(user.account)}"></label>
           <label>Usuario <input name="name" value="${escapeAttr(user.name)}"></label>
           <label>Corretora <input name="broker" value="${escapeAttr(user.broker)}"></label>
+          <label>Telefone/WhatsApp <input name="phone" value="${escapeAttr(user.phone || "")}"></label>
+          <label>Status <select name="status"><option value="active" ${(user.status || "active") === "active" ? "selected" : ""}>Ativo</option><option value="inactive" ${user.status === "inactive" ? "selected" : ""}>Inativo</option></select></label>
           <label>Tipo <select name="type"><option ${user.type === "Real" ? "selected" : ""}>Real</option><option ${user.type === "Demo" ? "selected" : ""}>Demo</option></select></label>
         </div>
         <br>
         <label>Observacao <textarea name="notes">${escapeHtml(user.notes || "")}</textarea></label>
         <br>
-        <button class="btn btn-red" type="submit">Salvar usuario</button>
+        <div class="actions">
+          <button class="btn btn-red" type="submit">Salvar usuario</button>
+          <button class="btn btn-ghost" type="button" onclick="deleteUser('${user.id}')">Excluir usuario</button>
+        </div>
       </form>
       <hr>
       <h3>Expert Advisors</h3>
@@ -644,6 +654,8 @@ async function approvePending(requestId) {
     account: request.account,
     name: request.accountName || `Conta ${request.account}`,
     broker: request.broker || request.accountServer || "-",
+    phone: request.phone || "",
+    status: "active",
     type: "Real",
     notes: `Criado automaticamente pela tentativa de uso do ${request.robot}.`
   };
@@ -679,6 +691,15 @@ async function saveUser(event, userId) {
   event.preventDefault();
   await api(`/api/users/${userId}`, { method: "PUT", body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())) });
   toast("Usuario salvo");
+  closeModal();
+  await reload();
+}
+
+async function deleteUser(userId) {
+  const user = findUser(userId);
+  if (!confirm(`Excluir o usuario ${user.name}? As licencas dele tambem serao removidas.`)) return;
+  await api(`/api/users/${userId}`, { method: "DELETE" });
+  toast("Usuario excluido");
   closeModal();
   await reload();
 }

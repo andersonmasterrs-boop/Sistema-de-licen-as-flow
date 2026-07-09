@@ -172,7 +172,7 @@ async function handleAdminById(req, res, id) {
 async function handleUserById(req, res, id) {
   const decodedId = decodeURIComponent(id);
   if (req.method === "PUT") {
-    const user = updateById("users", decodedId, pick(await readBody(req), ["account", "name", "broker", "type", "notes"]));
+    const user = updateById("users", decodedId, pick(await readBody(req), ["account", "name", "broker", "phone", "status", "type", "notes"]));
     if (!user) return sendJson(res, 404, { ok: false, error: "USER_NOT_FOUND" });
     await persistDb();
     return sendJson(res, 200, { ok: true, user });
