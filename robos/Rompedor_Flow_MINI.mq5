@@ -925,16 +925,39 @@ datetime InicioDaSemana(datetime t)
    return dia - voltar * 86400;
 }
 
+bool DealPertenceAoRobo(ulong deal)
+{
+   if(deal == 0) return false;
+   if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol) return false;
+   if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) == NumeroMagico) return true;
+
+   long positionId = (long)HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+   if(positionId <= 0) return false;
+
+   for(int i=HistoryDealsTotal()-1; i>=0; i--)
+   {
+      ulong outroDeal = HistoryDealGetTicket(i);
+      if(outroDeal == 0) continue;
+      if((long)HistoryDealGetInteger(outroDeal, DEAL_POSITION_ID) != positionId) continue;
+      if(HistoryDealGetString(outroDeal, DEAL_SYMBOL) != _Symbol) continue;
+      if((ulong)HistoryDealGetInteger(outroDeal, DEAL_MAGIC) == NumeroMagico)
+         return true;
+   }
+
+   return false;
+}
+
 double ResultadoPeriodoRobo(datetime ini, datetime fim)
 {
-   if(!HistorySelect(ini, fim)) return 0.0;
+   if(!HistorySelect(0, fim)) return 0.0;
    double total = 0.0;
    for(int i=HistoryDealsTotal()-1; i>=0; i--)
    {
       ulong deal = HistoryDealGetTicket(i);
       if(deal == 0) continue;
-      if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol) continue;
-      if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != NumeroMagico) continue;
+      datetime dealTime = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+      if(dealTime < ini || dealTime > fim) continue;
+      if(!DealPertenceAoRobo(deal)) continue;
       total += HistoryDealGetDouble(deal, DEAL_PROFIT)
              + HistoryDealGetDouble(deal, DEAL_SWAP)
              + HistoryDealGetDouble(deal, DEAL_COMMISSION);
@@ -970,15 +993,18 @@ double ResultadoTotalRobo()
 
 int TradesPeriodoRobo(datetime ini, datetime fim)
 {
-   if(!HistorySelect(ini, fim)) return 0;
+   if(!HistorySelect(0, fim)) return 0;
    int total = 0;
    for(int i=HistoryDealsTotal()-1; i>=0; i--)
    {
       ulong deal = HistoryDealGetTicket(i);
       if(deal == 0) continue;
-      if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol) continue;
-      if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != NumeroMagico) continue;
-      if((long)HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_OUT) total++;
+      datetime dealTime = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+      if(dealTime < ini || dealTime > fim) continue;
+      if(!DealPertenceAoRobo(deal)) continue;
+      ENUM_DEAL_ENTRY entradaDeal = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal, DEAL_ENTRY);
+      if(entradaDeal == DEAL_ENTRY_OUT || entradaDeal == DEAL_ENTRY_INOUT || entradaDeal == DEAL_ENTRY_OUT_BY)
+         total++;
    }
    return total;
 }
@@ -990,14 +1016,15 @@ int TradesDiaRobo()
 
 double VolumePeriodoRobo(datetime ini, datetime fim)
 {
-   if(!HistorySelect(ini, fim)) return 0.0;
+   if(!HistorySelect(0, fim)) return 0.0;
    double total = 0.0;
    for(int i=HistoryDealsTotal()-1; i>=0; i--)
    {
       ulong deal = HistoryDealGetTicket(i);
       if(deal == 0) continue;
-      if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol) continue;
-      if((ulong)HistoryDealGetInteger(deal, DEAL_MAGIC) != NumeroMagico) continue;
+      datetime dealTime = (datetime)HistoryDealGetInteger(deal, DEAL_TIME);
+      if(dealTime < ini || dealTime > fim) continue;
+      if(!DealPertenceAoRobo(deal)) continue;
       ENUM_DEAL_ENTRY entradaDeal = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal, DEAL_ENTRY);
       if(entradaDeal != DEAL_ENTRY_OUT && entradaDeal != DEAL_ENTRY_INOUT && entradaDeal != DEAL_ENTRY_OUT_BY)
          continue;
@@ -2656,8 +2683,9 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
    if(trans.deal == 0) return;
    if(!HistoryDealSelect(trans.deal)) return;
 
-   if(HistoryDealGetString(trans.deal, DEAL_SYMBOL) != _Symbol) return;
-   if((ulong)HistoryDealGetInteger(trans.deal, DEAL_MAGIC) != NumeroMagico) return;
+   if(!HistorySelect(0, TimeCurrent())) return;
+   if(!HistoryDealSelect(trans.deal)) return;
+   if(!DealPertenceAoRobo(trans.deal)) return;
 
    ENUM_DEAL_ENTRY entradaDeal = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
    if(entradaDeal != DEAL_ENTRY_OUT && entradaDeal != DEAL_ENTRY_INOUT && entradaDeal != DEAL_ENTRY_OUT_BY)
@@ -2671,6 +2699,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
    horarioUltimoFechamentoOperacao = (datetime)HistoryDealGetInteger(trans.deal, DEAL_TIME);
    precoUltimoFechamentoOperacao = HistoryDealGetDouble(trans.deal, DEAL_PRICE);
    horarioPlotResultado = TimeCurrent() + MathMax(1, AguardarSegundosParaPlotarResultado);
+   EnviarPerformanceOnline();
    if(BloquearReentradaMesmoCandle)
       candleBloqueadoAposFechamento = iTime(_Symbol, _Period, 0);
 }
