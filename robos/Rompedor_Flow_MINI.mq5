@@ -334,6 +334,7 @@ bool VerificarLicencaOnline()
 
    if(status == 200 && StringFind(resposta, "AUTHORIZED|") == 0)
    {
+      LimparAvisoLiberacaoTelefone();
       Print("Licenca autorizada para ", RobotName, ". Conta: ", AccountInfoInteger(ACCOUNT_LOGIN));
       int primeiroSeparador = StringFind(resposta, "|");
       int segundoSeparador = StringFind(resposta, "|", primeiroSeparador + 1);
@@ -2297,23 +2298,41 @@ void PainelTextoCentro(string nome, int xCentro, int y, string texto, color cor,
    ObjectSetInteger(0, nome, OBJPROP_ZORDER, PAINEL_ZTEXTO);
 }
 
+void LimparAvisoLiberacaoTelefone()
+{
+   ObjectDelete(0, "PBFX_LIC_BG");
+   ObjectDelete(0, "PBFX_LIC_TITULO");
+   ObjectDelete(0, "PBFX_LIC_CHAMADA");
+   ObjectDelete(0, "PBFX_LIC_L1");
+   ObjectDelete(0, "PBFX_LIC_L2");
+   ObjectDelete(0, "PBFX_LIC_L3");
+   ObjectDelete(0, "PBFX_LIC_L4");
+   ObjectDelete(0, "PBFX_LIC_L5");
+   ObjectDelete(0, "PBFX_LIC_RODAPE");
+}
+
 void DesenharAvisoLiberacaoTelefone()
 {
-   int x = 24;
-   int y = 34;
-   int w = 760;
-   int h = 285;
+   LimparAvisoLiberacaoTelefone();
+
+   int larguraPainel = PainelLargura;
+   if(larguraPainel < 410) larguraPainel = 410;
+
+   int x = PainelX + larguraPainel + 28;
+   int y = PainelY;
+   int w = 540;
+   int h = 238;
 
    PainelRetangulo("PBFX_LIC_BG", x, y, w, h, clrTomato, (color)0x101010);
-   PainelTextoCentro("PBFX_LIC_TITULO", x + w/2, y + 38, "ROMPEDOR FLOW - LIBERACAO DA LICENCA", clrGold, 18, "Arial Black");
-   PainelTextoCentro("PBFX_LIC_CHAMADA", x + w/2, y + 82, "PREENCHA SEU TELEFONE NOS PARAMETROS", clrWhite, 20, "Arial Black");
+   PainelTextoCentro("PBFX_LIC_TITULO", x + w/2, y + 30, "ROMPEDOR FLOW - LICENCA", clrGold, 13, "Arial Black");
+   PainelTextoCentro("PBFX_LIC_CHAMADA", x + w/2, y + 62, "PREENCHA O TELEFONE NOS PARAMETROS", clrWhite, 14, "Arial Black");
 
-   PainelTexto("PBFX_LIC_L1", x + 34, y + 126, "1. Clique com o botao direito no grafico e abra Lista de Expert Advisors.", clrWhite, 12, "Arial Bold");
-   PainelTexto("PBFX_LIC_L2", x + 34, y + 154, "2. Selecione Rompedor Flow, clique em Propriedades e va em Entradas.", clrWhite, 12, "Arial Bold");
-   PainelTexto("PBFX_LIC_L3", x + 34, y + 182, "3. No campo TelefoneWhatsApp, digite seu WhatsApp com DDD.", clrGold, 13, "Arial Black");
-   PainelTexto("PBFX_LIC_L4", x + 34, y + 214, "4. Se precisar liberar WebRequest, copie o campo CopieLinkWebRequest.", clrWhite, 12, "Arial Bold");
-   PainelTexto("PBFX_LIC_L5", x + 34, y + 242, "5. Clique OK e carregue o robo novamente para liberar o periodo de teste.", clrWhite, 12, "Arial Bold");
-   PainelTexto("PBFX_LIC_RODAPE", x + 34, y + 270, "Campos importantes: TelefoneWhatsApp e CopieLinkWebRequest", clrTomato, 13, "Arial Black");
+   PainelTexto("PBFX_LIC_L1", x + 24, y + 96, "1. Botao direito no grafico > Lista de Expert Advisors.", clrWhite, 9, "Arial Bold");
+   PainelTexto("PBFX_LIC_L2", x + 24, y + 120, "2. Rompedor Flow > Propriedades > Entradas.", clrWhite, 9, "Arial Bold");
+   PainelTexto("PBFX_LIC_L3", x + 24, y + 144, "3. Preencha TelefoneWhatsApp com DDD.", clrGold, 10, "Arial Black");
+   PainelTexto("PBFX_LIC_L4", x + 24, y + 170, "4. WebRequest: copie o campo CopieLinkWebRequest.", clrWhite, 9, "Arial Bold");
+   PainelTexto("PBFX_LIC_L5", x + 24, y + 194, "5. Clique OK e carregue o robo novamente.", clrWhite, 9, "Arial Bold");
+   PainelTexto("PBFX_LIC_RODAPE", x + 24, y + 216, "Campos: TelefoneWhatsApp e CopieLinkWebRequest", clrTomato, 9, "Arial Black");
 }
 
 void PainelLinhaInfo(string prefixo, int &idx, int x, int y, string rotulo, string valor, color corValor=clrWhite)
