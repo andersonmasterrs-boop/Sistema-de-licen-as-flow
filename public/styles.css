@@ -38,6 +38,28 @@ textarea {
   padding: 24px;
 }
 
+.checkout-page {
+  min-height: 100vh;
+  padding: 32px 16px 72px;
+}
+
+.checkout-shell {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.checkout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 22px;
+  align-items: start;
+}
+
+.plan-highlight {
+  border-color: rgba(247, 170, 37, .5);
+  background: linear-gradient(180deg, rgba(247, 170, 37, .08), rgba(255,255,255,.02));
+}
+
 .login-box,
 .panel,
 .metric,
@@ -478,6 +500,7 @@ tr.warn {
   .metrics,
   .metrics.compact,
   .podium,
+  .checkout-grid,
   .split {
     grid-template-columns: 1fr;
   }

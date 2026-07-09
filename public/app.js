@@ -2,6 +2,7 @@ const state = {
   token: localStorage.getItem("licenseToken") || "",
   view: "dashboard",
   data: null,
+  checkout: null,
   editingUserId: null,
   dashboardType: "all",
   dashboardPeriod: "30"
@@ -24,6 +25,19 @@ const app = document.querySelector("#app");
 
 render();
 
+async function publicApi(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || payload.error || "Erro na requisicao");
+  return payload;
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -44,6 +58,11 @@ async function loadState() {
 }
 
 function render() {
+  if (window.location.pathname === "/comprar") {
+    renderCheckoutPage();
+    return;
+  }
+
   if (!state.token) {
     renderLogin();
     return;
@@ -68,6 +87,112 @@ function render() {
       if (error.message === "UNAUTHORIZED") logout();
       else toast(error.message);
     });
+}
+
+function renderCheckoutPage() {
+  app.innerHTML = `
+    <section class="checkout-page">
+      <div class="checkout-shell">
+        <section class="panel hero-panel">
+          <h1>Rompedor Flow</h1>
+          <p class="muted">Escolha o plano, informe sua conta MT5 e finalize o pagamento com seguranca.</p>
+          ${checkoutStatusMessage()}
+        </section>
+        <section id="checkout-content">${empty("Carregando planos...")}</section>
+      </div>
+    </section>
+  `;
+
+  publicApi("/api/checkout/config")
+    .then((payload) => {
+      state.checkout = payload.data;
+      renderCheckoutContent();
+    })
+    .catch((error) => {
+      document.querySelector("#checkout-content").innerHTML = `<section class="panel"><h2>Nao foi possivel carregar</h2><p class="muted">${escapeHtml(error.message)}</p></section>`;
+    });
+}
+
+function checkoutStatusMessage() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("status");
+  if (status === "success") return `<div class="badge green">Pagamento recebido. A licenca sera liberada automaticamente em instantes.</div>`;
+  if (status === "pending") return `<div class="badge">Pagamento pendente. Assim que aprovar, a licenca sera liberada.</div>`;
+  if (status === "failure") return `<div class="badge red">Pagamento nao aprovado. Voce pode tentar novamente.</div>`;
+  return "";
+}
+
+function renderCheckoutContent() {
+  const plans = state.checkout?.plans || [];
+  const selectedPlanId = new URLSearchParams(window.location.search).get("plan");
+  const firstPlanId = plans.some((plan) => plan.id === selectedPlanId) ? selectedPlanId : plans[0]?.id || "";
+  const node = document.querySelector("#checkout-content");
+  if (!node) return;
+  node.innerHTML = `
+    <section class="checkout-grid">
+      <div class="panel">
+        <h2>Planos disponiveis</h2>
+        <div class="cards-list">
+          ${plans.map((plan, index) => checkoutPlanCard(plan, index === 0)).join("") || empty("Nenhum plano ativo no momento.")}
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Dados para liberar a licenca</h2>
+        <form onsubmit="startCheckout(event)">
+          <label>Plano
+            <select name="planId" required>
+              ${plans.map((plan) => `<option value="${plan.id}" ${plan.id === firstPlanId ? "selected" : ""}>${escapeHtml(plan.name)} - ${money(plan.price)}</option>`).join("")}
+            </select>
+          </label>
+          <br>
+          <label>Numero da conta MT5 <input name="account" required inputmode="numeric" placeholder="Ex: 1951361"></label>
+          <br>
+          <label>Nome <input name="name" required placeholder="Nome do titular"></label>
+          <br>
+          <label>Telefone/WhatsApp <input name="phone" required placeholder="DDD + numero"></label>
+          <br>
+          <label>Corretora <input name="broker" placeholder="Ex: Genial, XP, Banco"></label>
+          <br>
+          <label>Tipo de conta <select name="type"><option>Real</option><option>Demo</option></select></label>
+          <br>
+          <button class="btn btn-red" type="submit" ${plans.length ? "" : "disabled"}>Ir para pagamento</button>
+          <p class="muted" style="margin-top: 12px">Apos a aprovacao do pagamento, a licenca e liberada automaticamente para a conta informada.</p>
+        </form>
+      </div>
+    </section>
+  `;
+}
+
+function checkoutPlanCard(plan, highlighted) {
+  return `
+    <article class="robot-row ${highlighted ? "plan-highlight" : ""}">
+      <div>
+        <strong>${escapeHtml(plan.name)}</strong>
+        <span class="badge green">${money(plan.price)}</span>
+        <span class="badge">${plan.durationDays} dias</span>
+        <div class="muted">${escapeHtml(plan.description || plan.robotName || "")}</div>
+      </div>
+    </article>
+  `;
+}
+
+async function startCheckout(event) {
+  event.preventDefault();
+  const button = event.target.querySelector("button[type='submit']");
+  button.disabled = true;
+  button.textContent = "Criando checkout...";
+  try {
+    const body = Object.fromEntries(new FormData(event.target).entries());
+    const payload = await publicApi("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+    if (!payload.checkoutUrl) throw new Error("CHECKOUT_URL_NOT_CREATED");
+    window.location.href = payload.checkoutUrl;
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Ir para pagamento";
+    alert(error.message === "MERCADOPAGO_ACCESS_TOKEN_REQUIRED"
+      ? "Pagamento ainda nao configurado. Configure MERCADOPAGO_ACCESS_TOKEN no Vercel."
+      : error.message);
+  }
 }
 
 function renderLogin() {
@@ -421,22 +546,57 @@ function renderRobots() {
 }
 
 function renderFinance() {
+  const plans = state.data.plans || [];
+  const payments = state.data.payments || [];
   const paid = state.data.licenses.filter((license) => Number(license.price) > 0);
-  const total = paid.reduce((sum, item) => sum + Number(item.price || 0), 0);
+  const approved = payments.filter((payment) => payment.status === "approved");
+  const total = approved.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const publicUrl = `${window.location.origin}/comprar`;
   return `
     <section class="panel">
-      <h1>Financeiro</h1>
-      <p class="muted">Total faturado com licencas registradas.</p>
-      <div class="metric"><span>Total faturado</span><strong>${money(total)}</strong></div>
+      <h1>Financeiro e pagamentos</h1>
+      <p class="muted">Planos, checkout publico e historico de pagamentos.</p>
+      <div class="metrics compact">
+        ${metric("Total aprovado", money(total))}
+        ${metric("Pagamentos", payments.length)}
+        ${metric("Planos ativos", plans.filter((plan) => plan.status === "active").length)}
+        ${metric("Checkout", `<button class="btn btn-ghost" onclick="copyText('${escapeAttr(publicUrl)}')">Copiar link</button>`)}
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Planos de venda</h2>
+      <form class="actions" onsubmit="createPlan(event)">
+        <label>Nome <input name="name" placeholder="Rompedor Flow - 30 dias" required></label>
+        <label>Robo <select name="robotId">${state.data.robots.map((robot) => `<option value="${robot.id}">${escapeHtml(robot.name)}</option>`).join("")}</select></label>
+        <label>Dias <input name="durationDays" type="number" min="1" value="30" required></label>
+        <label>Valor <input name="price" type="number" step="0.01" min="0" value="197" required></label>
+        <label>Status <select name="status"><option value="active">Ativo</option><option value="inactive">Inativo</option></select></label>
+        <label class="field-wide">Descricao <input name="description" placeholder="Licenca para uso do robo"></label>
+        <button class="btn btn-red" type="submit">Adicionar plano</button>
+      </form>
+      <div class="cards-list" style="margin-top: 16px">
+        ${plans.map(planCard).join("") || empty("Nenhum plano cadastrado.")}
+      </div>
     </section>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>Projeto</th><th>Usuario</th><th>Pagamento</th><th>Total</th></tr></thead>
-        <tbody>${paid.map((license) => {
+        <thead><tr><th>Status</th><th>Plano</th><th>Conta</th><th>Cliente</th><th>Telefone</th><th>Pagamento</th><th>Total</th></tr></thead>
+        <tbody>${payments.map((payment) => {
+          const plan = findPlan(payment.planId);
+          return `<tr>
+            <td><span class="badge ${payment.status === "approved" ? "green" : payment.status === "pending" ? "" : "red"}">${escapeHtml(payment.status)}</span></td>
+            <td>${escapeHtml(plan.name || "-")}</td>
+            <td><strong>${escapeHtml(payment.account)}</strong></td>
+            <td>${escapeHtml(payment.name)}</td>
+            <td>${escapeHtml(payment.phone || "-")}</td>
+            <td>${formatDate(payment.paidAt || payment.updatedAt)}</td>
+            <td>${money(payment.amount)}</td>
+          </tr>`;
+        }).join("") || paid.map((license) => {
           const user = findUser(license.userId);
           const robot = findRobot(license.robotId);
-          return `<tr><td>${escapeHtml(robot.name)}</td><td>${escapeHtml(user.name)}</td><td>${formatDate(license.paidAt)}</td><td>${money(license.price)}</td></tr>`;
-        }).join("")}</tbody>
+          return `<tr><td><span class="badge green">manual</span></td><td>${escapeHtml(robot.name)}</td><td>${escapeHtml(user.account)}</td><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.phone || "-")}</td><td>${formatDate(license.paidAt)}</td><td>${money(license.price)}</td></tr>`;
+        }).join("") || `<tr><td colspan="7">Nenhum pagamento registrado.</td></tr>`}</tbody>
       </table>
     </section>
   `;
@@ -615,6 +775,26 @@ function licenseCard(license) {
   `;
 }
 
+function planCard(plan) {
+  const robot = findRobot(plan.robotId);
+  const link = `${window.location.origin}/comprar?plan=${encodeURIComponent(plan.id)}`;
+  return `
+    <article class="robot-row">
+      <div>
+        <strong>${escapeHtml(plan.name)}</strong>
+        <span class="badge ${plan.status === "active" ? "green" : "red"}">${plan.status === "active" ? "Ativo" : "Inativo"}</span>
+        <span class="badge">${money(plan.price)}</span>
+        <span class="badge">${Number(plan.durationDays || 0)} dias</span>
+        <div class="muted">${escapeHtml(robot.name)} - ${escapeHtml(plan.description || "Sem descricao")}</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-ghost" onclick="copyText('${escapeAttr(link)}')">Copiar link</button>
+        <button class="btn btn-blue" onclick="openPlan('${plan.id}')">Editar</button>
+      </div>
+    </article>
+  `;
+}
+
 async function createUser(event) {
   event.preventDefault();
   await api("/api/users", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())) });
@@ -708,6 +888,63 @@ async function createRobot(event) {
   event.preventDefault();
   await api("/api/robots", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())) });
   toast("Robo adicionado");
+  await reload();
+}
+
+async function createPlan(event) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.target).entries());
+  await api("/api/plans", { method: "POST", body: JSON.stringify(body) });
+  toast("Plano adicionado");
+  event.target.reset();
+  await reload();
+}
+
+function openPlan(planId) {
+  const plan = findPlan(planId);
+  if (!plan.id) return toast("Plano nao encontrado");
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>${escapeHtml(plan.name)}</h2>
+        <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      </div>
+      <form onsubmit="savePlan(event, '${plan.id}')">
+        <div class="split">
+          <label>Nome <input name="name" value="${escapeAttr(plan.name)}" required></label>
+          <label>Robo <select name="robotId">${state.data.robots.map((robot) => `<option value="${robot.id}" ${robot.id === plan.robotId ? "selected" : ""}>${escapeHtml(robot.name)}</option>`).join("")}</select></label>
+          <label>Dias <input name="durationDays" type="number" min="1" value="${escapeAttr(plan.durationDays)}" required></label>
+          <label>Valor <input name="price" type="number" step="0.01" min="0" value="${escapeAttr(plan.price)}" required></label>
+          <label>Status <select name="status"><option value="active" ${plan.status === "active" ? "selected" : ""}>Ativo</option><option value="inactive" ${plan.status === "inactive" ? "selected" : ""}>Inativo</option></select></label>
+        </div>
+        <br>
+        <label>Descricao <textarea name="description">${escapeHtml(plan.description || "")}</textarea></label>
+        <br>
+        <div class="actions">
+          <button class="btn btn-red" type="submit">Salvar plano</button>
+          <button class="btn btn-ghost" type="button" onclick="deletePlan('${plan.id}')">Excluir plano</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+async function savePlan(event, planId) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.target).entries());
+  await api(`/api/plans/${planId}`, { method: "PUT", body: JSON.stringify(body) });
+  toast("Plano salvo");
+  closeModal();
+  await reload();
+}
+
+async function deletePlan(planId) {
+  if (!confirm("Excluir este plano?")) return;
+  await api(`/api/plans/${planId}`, { method: "DELETE" });
+  toast("Plano excluido");
+  closeModal();
   await reload();
 }
 
@@ -982,6 +1219,10 @@ function findUser(id) {
 
 function findRobot(id) {
   return state.data.robots.find((item) => item.id === id) || { name: "-", version: "-" };
+}
+
+function findPlan(id) {
+  return (state.data.plans || []).find((item) => item.id === id) || { name: "-", description: "" };
 }
 
 function copyText(text) {

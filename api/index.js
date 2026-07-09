@@ -3,12 +3,16 @@ const {
   login,
   requireAuth,
   buildState,
+  buildPublicCheckoutState,
   checkLicense,
   reportPerformance,
   createAdmin,
   updateAdmin,
   createUser,
   createRobot,
+  createPlan,
+  createPayment,
+  applyApprovedPayment,
   createLicense,
   updateById,
   removeById,
@@ -64,6 +68,25 @@ module.exports = async function handler(req, res) {
       return sendJson(res, result.ok ? 200 : 403, result);
     }
 
+    if (route === "/checkout/config") {
+      if (req.method !== "GET") return methodNotAllowed(res);
+      return sendJson(res, 200, { ok: true, data: buildPublicCheckoutState() });
+    }
+
+    if (route === "/checkout") {
+      if (req.method !== "POST") return methodNotAllowed(res);
+      const result = await createCheckout(await readBody(req), req);
+      await persistDb();
+      return sendJson(res, 201, { ok: true, ...result });
+    }
+
+    if (route === "/payments/mercadopago/webhook") {
+      if (req.method !== "GET" && req.method !== "POST") return methodNotAllowed(res);
+      const result = await handleMercadoPagoWebhook(req);
+      await persistDb();
+      return sendJson(res, 200, { ok: true, ...result });
+    }
+
     if (!requireAuth(req, res)) return;
 
     if (route === "/me") {
@@ -82,6 +105,9 @@ module.exports = async function handler(req, res) {
     if (route.startsWith("/users/")) return handleUserById(req, res, route.slice("/users/".length));
     if (route === "/robots") return handleRobots(req, res);
     if (route.startsWith("/robots/")) return handleRobotById(req, res, route.slice("/robots/".length));
+    if (route === "/plans") return handlePlans(req, res);
+    if (route.startsWith("/plans/")) return handlePlanById(req, res, route.slice("/plans/".length));
+    if (route === "/payments") return handlePayments(req, res);
     if (route === "/licenses") return handleLicenses(req, res);
     if (route.startsWith("/licenses/")) return handleLicenseById(req, res, route.slice("/licenses/".length));
 
@@ -201,12 +227,189 @@ async function handleRobots(req, res) {
   return methodNotAllowed(res);
 }
 
+async function handlePlans(req, res) {
+  const db = getDb();
+  if (req.method === "GET") return sendJson(res, 200, { ok: true, plans: db.plans });
+  if (req.method === "POST") {
+    const plan = createPlan(await readBody(req));
+    db.plans.unshift(plan);
+    await persistDb();
+    return sendJson(res, 201, { ok: true, plan });
+  }
+  return methodNotAllowed(res);
+}
+
+async function handlePlanById(req, res, id) {
+  const decodedId = decodeURIComponent(id);
+  if (req.method === "PUT") {
+    const plan = updateById("plans", decodedId, pick(await readBody(req), ["name", "description", "robotId", "durationDays", "price", "status"]));
+    if (!plan) return sendJson(res, 404, { ok: false, error: "PLAN_NOT_FOUND" });
+    await persistDb();
+    return sendJson(res, 200, { ok: true, plan });
+  }
+  if (req.method === "DELETE") {
+    removeById("plans", decodedId);
+    await persistDb();
+    return sendJson(res, 200, { ok: true });
+  }
+  return methodNotAllowed(res);
+}
+
+async function handlePayments(req, res) {
+  const db = getDb();
+  if (req.method === "GET") return sendJson(res, 200, { ok: true, payments: db.payments });
+  return methodNotAllowed(res);
+}
+
 async function handleRobotById(req, res, id) {
   if (req.method !== "PUT") return methodNotAllowed(res);
   const robot = updateById("robots", decodeURIComponent(id), pick(await readBody(req), ["name", "version", "status", "message"]));
   if (!robot) return sendJson(res, 404, { ok: false, error: "ROBOT_NOT_FOUND" });
   await persistDb();
   return sendJson(res, 200, { ok: true, robot });
+}
+
+async function createCheckout(body, req) {
+  const db = getDb();
+  const plan = db.plans.find((item) => item.id === body.planId && item.status === "active");
+  if (!plan) throw new Error("PLAN_NOT_FOUND");
+  const robot = db.robots.find((item) => item.id === plan.robotId);
+  if (!robot) throw new Error("ROBOT_NOT_FOUND");
+
+  const payment = createPayment({
+    provider: "mercadopago",
+    status: "pending",
+    planId: plan.id,
+    robotId: robot.id,
+    account: body.account,
+    name: body.name,
+    phone: body.phone,
+    broker: body.broker,
+    type: body.type || "Real",
+    amount: plan.price,
+    currency: "BRL"
+  });
+  payment.externalReference = payment.id;
+  db.payments.unshift(payment);
+
+  const preference = await createMercadoPagoPreference({ payment, plan, robot, req });
+  payment.providerPreferenceId = preference.id || "";
+  payment.checkoutUrl = preference.init_point || preference.sandbox_init_point || "";
+  payment.updatedAt = new Date().toISOString();
+
+  return {
+    payment,
+    checkoutUrl: payment.checkoutUrl
+  };
+}
+
+async function createMercadoPagoPreference({ payment, plan, robot, req }) {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN_REQUIRED");
+
+  const baseUrl = publicBaseUrl(req);
+  const payload = {
+    items: [
+      {
+        title: plan.name,
+        description: plan.description || `Licenca ${robot.name}`,
+        quantity: 1,
+        currency_id: "BRL",
+        unit_price: Number(plan.price || 0)
+      }
+    ],
+    payer: {
+      name: payment.name,
+      phone: { number: payment.phone }
+    },
+    external_reference: payment.externalReference,
+    notification_url: `${baseUrl}/api/payments/mercadopago/webhook`,
+    back_urls: {
+      success: `${baseUrl}/comprar?status=success&payment=${encodeURIComponent(payment.id)}`,
+      pending: `${baseUrl}/comprar?status=pending&payment=${encodeURIComponent(payment.id)}`,
+      failure: `${baseUrl}/comprar?status=failure&payment=${encodeURIComponent(payment.id)}`
+    },
+    auto_return: "approved",
+    metadata: {
+      payment_id: payment.id,
+      plan_id: plan.id,
+      account: payment.account,
+      robot: robot.name
+    }
+  };
+
+  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `MERCADOPAGO_PREFERENCE_FAILED_${response.status}`);
+  }
+  return data;
+}
+
+async function handleMercadoPagoWebhook(req) {
+  const body = req.method === "POST" ? await readBody(req) : {};
+  const url = new URL(req.url, "https://license.local");
+  const paymentId = String(
+    body?.data?.id ||
+    body?.resource?.split?.("/")?.pop?.() ||
+    url.searchParams.get("data.id") ||
+    url.searchParams.get("id") ||
+    ""
+  );
+
+  if (!paymentId) return { received: true, ignored: "NO_PAYMENT_ID" };
+
+  const mercadoPagoPayment = await fetchMercadoPagoPayment(paymentId);
+  const externalReference = String(mercadoPagoPayment.external_reference || "");
+  const db = getDb();
+  const payment = db.payments.find((item) => item.externalReference === externalReference || item.id === externalReference);
+  if (!payment) return { received: true, ignored: "PAYMENT_NOT_FOUND", providerPaymentId: paymentId };
+
+  payment.providerPaymentId = String(mercadoPagoPayment.id || paymentId);
+  payment.rawStatus = mercadoPagoPayment.status || "";
+  payment.updatedAt = new Date().toISOString();
+
+  if (mercadoPagoPayment.status === "approved") {
+    payment.paidAt = mercadoPagoPayment.date_approved || new Date().toISOString();
+    applyApprovedPayment(payment, {
+      providerPaymentId: mercadoPagoPayment.id,
+      rawStatus: mercadoPagoPayment.status
+    });
+    return { received: true, paymentId: payment.id, status: "approved" };
+  }
+
+  if (["rejected", "cancelled", "refunded", "charged_back"].includes(mercadoPagoPayment.status)) {
+    payment.status = mercadoPagoPayment.status;
+  } else {
+    payment.status = "pending";
+  }
+
+  return { received: true, paymentId: payment.id, status: payment.status };
+}
+
+async function fetchMercadoPagoPayment(paymentId) {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN_REQUIRED");
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `MERCADOPAGO_PAYMENT_FETCH_FAILED_${response.status}`);
+  }
+  return data;
+}
+
+function publicBaseUrl(req) {
+  return (process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}`).replace(/\/+$/, "");
 }
 
 async function handleLicenses(req, res) {
