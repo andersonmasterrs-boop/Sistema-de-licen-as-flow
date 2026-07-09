@@ -49,7 +49,7 @@ bool   LicenseFailureMessageShown = false;
 
 //------------------------- PARÂMETROS ------------------------------
 input group "Liberacao da licenca"
-input string TelefoneWhatsApp          = ""; // informe seu WhatsApp para liberar a licenca automaticamente
+input string TelefoneWhatsApp          = ""; // OBRIGATORIO: preencha seu WhatsApp para liberar o periodo de testes
 
 input group "Configuracao Geral"
 input ulong  NumeroMagico              = 1255;
@@ -2266,6 +2266,24 @@ void PainelTextoCentro(string nome, int xCentro, int y, string texto, color cor,
    ObjectSetInteger(0, nome, OBJPROP_ZORDER, PAINEL_ZTEXTO);
 }
 
+void DesenharAvisoLiberacaoTelefone()
+{
+   int x = 24;
+   int y = 34;
+   int w = 760;
+   int h = 285;
+
+   PainelRetangulo("PBFX_LIC_BG", x, y, w, h, clrTomato, (color)0x101010);
+   PainelTextoCentro("PBFX_LIC_TITULO", x + w/2, y + 38, "ROMPEDOR FLOW - LIBERACAO DA LICENCA", clrGold, 18, "Arial Black");
+   PainelTextoCentro("PBFX_LIC_CHAMADA", x + w/2, y + 82, "PREENCHA SEU TELEFONE NOS PARAMETROS", clrWhite, 20, "Arial Black");
+
+   PainelTexto("PBFX_LIC_L1", x + 34, y + 126, "1. Clique com o botao direito no grafico e abra Lista de Expert Advisors.", clrWhite, 12, "Arial Bold");
+   PainelTexto("PBFX_LIC_L2", x + 34, y + 154, "2. Selecione Rompedor Flow, clique em Propriedades e va em Entradas.", clrWhite, 12, "Arial Bold");
+   PainelTexto("PBFX_LIC_L3", x + 34, y + 182, "3. No campo TelefoneWhatsApp, digite seu WhatsApp com DDD.", clrGold, 13, "Arial Black");
+   PainelTexto("PBFX_LIC_L4", x + 34, y + 214, "4. Clique OK e carregue o robo novamente para liberar o periodo de teste.", clrWhite, 12, "Arial Bold");
+   PainelTexto("PBFX_LIC_RODAPE", x + 34, y + 252, "Campo obrigatorio: TelefoneWhatsApp", clrTomato, 14, "Arial Black");
+}
+
 void PainelLinhaInfo(string prefixo, int &idx, int x, int y, string rotulo, string valor, color corValor=clrWhite)
 {
    int yy = y + idx * 15;
@@ -2683,6 +2701,8 @@ int OnInit()
 
    if(!VerificarLicencaOnline())
    {
+      DesenharAvisoLiberacaoTelefone();
+      ChartRedraw(0);
       if(!LicenseFailureMessageShown)
          MostrarMensagemLicenca("Rompedor Flow - Licenca", "Licenca invalida, expirada ou sem comunicacao com o servidor.");
       return INIT_FAILED;
@@ -2721,6 +2741,8 @@ void OnTimer()
 {
    if(!VerificarLicencaOnline())
    {
+      DesenharAvisoLiberacaoTelefone();
+      ChartRedraw(0);
       if(!LicenseFailureMessageShown)
          MostrarMensagemLicenca("Rompedor Flow - Licenca", "Licenca invalida, expirada ou sem comunicacao com o servidor.");
       EventKillTimer();
