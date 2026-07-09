@@ -48,8 +48,8 @@ datetime LastPerformanceReportAt = 0;
 bool   LicenseFailureMessageShown = false;
 
 //------------------------- PARÂMETROS ------------------------------
-input group "Licenca de teste"
-input string TelefoneWhatsApp          = ""; // preencha para liberar 7 dias de teste automaticamente
+input group "Liberacao da licenca"
+input string TelefoneWhatsApp          = ""; // informe seu WhatsApp para liberar a licenca automaticamente
 
 input group "Configuracao Geral"
 input ulong  NumeroMagico              = 1255;
@@ -264,6 +264,12 @@ string UrlEncodeLicenca(string value)
    return result;
 }
 
+void MostrarMensagemLicenca(string titulo, string mensagem)
+{
+   Print(titulo, ": ", mensagem);
+   MessageBox(mensagem, titulo, MB_OK | MB_ICONINFORMATION);
+}
+
 string MontarUrlLicenca()
 {
    string account = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
@@ -307,7 +313,14 @@ bool VerificarLicencaOnline()
       Print("Erro WebRequest na verificacao de licenca: ", erro);
       Print("Libere a URL em Ferramentas > Opcoes > Expert Advisors: ", LicenseServer);
       LicenseFailureMessageShown = true;
-      Alert("WebRequest nao liberado. No MT5 acesse Ferramentas > Opcoes > Expert Advisors, marque 'Permitir WebRequest para URL listada' e adicione esta URL: ", LicenseServer);
+      string textoWebRequest = "Para ativar a licenca, libere o acesso do robo ao servidor.\n\n";
+      textoWebRequest += "No MT5 acesse:\n";
+      textoWebRequest += "Ferramentas > Opcoes > Expert Advisors\n\n";
+      textoWebRequest += "Marque:\n";
+      textoWebRequest += "Permitir WebRequest para URL listada\n\n";
+      textoWebRequest += "Adicione esta URL:\n";
+      textoWebRequest += LicenseServer;
+      MostrarMensagemLicenca("Rompedor Flow - WebRequest", textoWebRequest);
       return false;
    }
 
@@ -331,7 +344,7 @@ bool VerificarLicencaOnline()
             if(mensagemServidor != LastLicenseServerMessage)
             {
                LastLicenseServerMessage = mensagemServidor;
-               Alert(RobotName, ": ", mensagemServidor);
+               MostrarMensagemLicenca(RobotName, mensagemServidor);
             }
          }
       }
@@ -352,7 +365,7 @@ bool VerificarLicencaOnline()
    if(StringLen(mensagemNegada) > 0)
    {
       LicenseFailureMessageShown = true;
-      Alert(RobotName, ": ", mensagemNegada);
+      MostrarMensagemLicenca(RobotName, mensagemNegada);
    }
    return false;
 }
@@ -2458,7 +2471,7 @@ bool VerificarExpiracaoEA()
 
    if(!avisoExpiracaoMostrado)
    {
-      Alert(MensagemEAExpirado());
+      MostrarMensagemLicenca("Rompedor Flow - Expirado", MensagemEAExpirado());
       avisoExpiracaoMostrado = true;
    }
    return true;
@@ -2671,7 +2684,7 @@ int OnInit()
    if(!VerificarLicencaOnline())
    {
       if(!LicenseFailureMessageShown)
-         Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
+         MostrarMensagemLicenca("Rompedor Flow - Licenca", "Licenca invalida, expirada ou sem comunicacao com o servidor.");
       return INIT_FAILED;
    }
    EnviarPerformanceOnline();
@@ -2709,7 +2722,7 @@ void OnTimer()
    if(!VerificarLicencaOnline())
    {
       if(!LicenseFailureMessageShown)
-         Alert("Licenca invalida, expirada ou sem comunicacao com o servidor para ", RobotName, ".");
+         MostrarMensagemLicenca("Rompedor Flow - Licenca", "Licenca invalida, expirada ou sem comunicacao com o servidor.");
       EventKillTimer();
       ExpertRemove();
       return;
