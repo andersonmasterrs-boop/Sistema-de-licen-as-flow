@@ -2,7 +2,9 @@ const state = {
   token: localStorage.getItem("licenseToken") || "",
   view: "dashboard",
   data: null,
-  editingUserId: null
+  editingUserId: null,
+  dashboardType: "all",
+  dashboardPeriod: "30"
 };
 
 const navItems = [
@@ -138,28 +140,72 @@ function updateNav() {
   });
 }
 
+function setDashboardFilter(key, value) {
+  state[key] = value;
+  renderView();
+}
+
+function dashboardSummary() {
+  const range = getPeriodRange(state.dashboardPeriod);
+  const users = usersByType(state.dashboardType);
+  const userIds = new Set(users.map((user) => user.id));
+  const now = new Date();
+  const activeLicenses = state.data.licenses.filter((license) =>
+    userIds.has(license.userId) &&
+    license.status === "active" &&
+    new Date(license.expiresAt) > now
+  );
+  const checks = state.data.checkIns.filter((check) =>
+    (!check.userId || userIds.has(check.userId)) &&
+    inDateRange(check.at, range)
+  );
+  const pending = (state.data.pendingRequests || []).filter((request) =>
+    users.some((user) => String(user.account) === String(request.account)) || state.dashboardType === "all"
+  );
+  const revenue = state.data.licenses
+    .filter((license) => userIds.has(license.userId) && license.paidAt && inDateRange(license.paidAt, range))
+    .reduce((sum, license) => sum + Number(license.price || 0), 0);
+
+  return {
+    activeAccounts: new Set(activeLicenses.map((license) => license.userId)).size,
+    activeLicenses: activeLicenses.length,
+    robots: state.data.robots.length,
+    checksToday: checks.length,
+    pendingRequests: pending.length,
+    revenue
+  };
+}
+
 function renderDashboard() {
-  const s = state.data.summary;
-  const perf = performanceSummary();
+  const s = dashboardSummary();
+  const perf = performanceSummary({ type: state.dashboardType, period: state.dashboardPeriod });
   return `
     <section class="panel hero-panel">
       <h1>Painel operacional <span class="badge green">LIVE</span></h1>
       <p class="muted">Controle de contas, licencas e verificacoes dos Expert Advisors.</p>
       <div class="filters">
-        <label>Tipo de conta <select><option>Real</option><option>Demo</option></select></label>
-        <label>Periodo <select><option>30 dias</option><option>Hoje</option><option>Mes atual</option></select></label>
+        <label>Tipo de conta <select onchange="setDashboardFilter('dashboardType', this.value)">
+          <option value="all" ${state.dashboardType === "all" ? "selected" : ""}>Todos</option>
+          <option value="Real" ${state.dashboardType === "Real" ? "selected" : ""}>Real</option>
+          <option value="Demo" ${state.dashboardType === "Demo" ? "selected" : ""}>Demo</option>
+        </select></label>
+        <label>Periodo <select onchange="setDashboardFilter('dashboardPeriod', this.value)">
+          <option value="today" ${state.dashboardPeriod === "today" ? "selected" : ""}>Hoje</option>
+          <option value="30" ${state.dashboardPeriod === "30" ? "selected" : ""}>30 dias</option>
+          <option value="month" ${state.dashboardPeriod === "month" ? "selected" : ""}>Mes atual</option>
+        </select></label>
       </div>
     </section>
     <section class="metrics">
       ${metric("Contas ativas", s.activeAccounts)}
       ${metric("Licencas ativas", s.activeLicenses)}
       ${metric("Robos", s.robots)}
-      ${metric("Checks hoje", s.checksToday)}
+      ${metric("Checks no periodo", s.checksToday)}
       ${metric("Pendentes", s.pendingRequests || 0)}
     </section>
     <section class="panel">
       <h2>Resumo financeiro</h2>
-      <div class="metric"><span>Faturado no mes</span><strong>${money(s.monthRevenue)}</strong></div>
+      <div class="metric"><span>Faturado no periodo</span><strong>${money(s.revenue)}</strong></div>
     </section>
     <section class="panel">
       <h2>Resultados do dia</h2>
@@ -727,11 +773,14 @@ function performanceReports() {
   return state.data.performanceReports || [];
 }
 
-function performanceSummary() {
-  const reports = performanceReports();
-  const today = new Date().toISOString().slice(0, 10);
-  const todayReports = reports.filter((item) => item.date === today);
-  const source = todayReports.length ? todayReports : reports;
+function performanceSummary(filters = {}) {
+  const range = getPeriodRange(filters.period || "today");
+  const userIds = new Set(usersByType(filters.type || "all").map((user) => user.id));
+  const reports = performanceReports().filter((item) =>
+    userIds.has(item.userId) &&
+    inDateRange(item.date, range)
+  );
+  const source = reports;
   const totals = summarizeReports(source);
   return {
     accounts: new Set(source.map((item) => item.account)).size,
@@ -740,6 +789,33 @@ function performanceSummary() {
     profit: totals.profitDay,
     dailySeries: dailySeries(reports)
   };
+}
+
+function usersByType(type) {
+  if (!type || type === "all") return state.data.users;
+  return state.data.users.filter((user) => String(user.type).toLowerCase() === String(type).toLowerCase());
+}
+
+function getPeriodRange(period) {
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (period === "30") {
+    start.setDate(start.getDate() - 29);
+  } else if (period === "month") {
+    start.setDate(1);
+  }
+
+  return { start, end };
+}
+
+function inDateRange(value, range) {
+  if (!value) return false;
+  const date = new Date(String(value).length === 10 ? `${value}T12:00:00` : value);
+  return date >= range.start && date <= range.end;
 }
 
 function summarizeReports(reports) {
