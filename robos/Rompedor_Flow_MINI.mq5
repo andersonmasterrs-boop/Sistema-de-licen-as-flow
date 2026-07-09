@@ -50,6 +50,7 @@ bool   LicenseFailureMessageShown = false;
 //------------------------- PARÂMETROS ------------------------------
 input group "Liberacao da licenca"
 input string TelefoneWhatsApp          = ""; // OBRIGATORIO: preencha seu WhatsApp para liberar o periodo de testes
+input string CopieLinkWebRequest       = "https://sistema-de-licen-as-flow.vercel.app"; // copie este link e cole no WebRequest do MT5
 
 input group "Configuracao Geral"
 input ulong  NumeroMagico              = 1255;
@@ -320,6 +321,9 @@ bool VerificarLicencaOnline()
       textoWebRequest += "Permitir WebRequest para URL listada\n\n";
       textoWebRequest += "Adicione esta URL:\n";
       textoWebRequest += LicenseServer;
+      textoWebRequest += "\n\n";
+      textoWebRequest += "Para copiar com facilidade, abra os parametros do robo e copie o campo:\n";
+      textoWebRequest += "CopieLinkWebRequest";
       MostrarMensagemLicenca("Rompedor Flow - WebRequest", textoWebRequest);
       return false;
    }
@@ -2307,8 +2311,9 @@ void DesenharAvisoLiberacaoTelefone()
    PainelTexto("PBFX_LIC_L1", x + 34, y + 126, "1. Clique com o botao direito no grafico e abra Lista de Expert Advisors.", clrWhite, 12, "Arial Bold");
    PainelTexto("PBFX_LIC_L2", x + 34, y + 154, "2. Selecione Rompedor Flow, clique em Propriedades e va em Entradas.", clrWhite, 12, "Arial Bold");
    PainelTexto("PBFX_LIC_L3", x + 34, y + 182, "3. No campo TelefoneWhatsApp, digite seu WhatsApp com DDD.", clrGold, 13, "Arial Black");
-   PainelTexto("PBFX_LIC_L4", x + 34, y + 214, "4. Clique OK e carregue o robo novamente para liberar o periodo de teste.", clrWhite, 12, "Arial Bold");
-   PainelTexto("PBFX_LIC_RODAPE", x + 34, y + 252, "Campo obrigatorio: TelefoneWhatsApp", clrTomato, 14, "Arial Black");
+   PainelTexto("PBFX_LIC_L4", x + 34, y + 214, "4. Se precisar liberar WebRequest, copie o campo CopieLinkWebRequest.", clrWhite, 12, "Arial Bold");
+   PainelTexto("PBFX_LIC_L5", x + 34, y + 242, "5. Clique OK e carregue o robo novamente para liberar o periodo de teste.", clrWhite, 12, "Arial Bold");
+   PainelTexto("PBFX_LIC_RODAPE", x + 34, y + 270, "Campos importantes: TelefoneWhatsApp e CopieLinkWebRequest", clrTomato, 13, "Arial Black");
 }
 
 void PainelLinhaInfo(string prefixo, int &idx, int x, int y, string rotulo, string valor, color corValor=clrWhite)
