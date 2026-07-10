@@ -1117,14 +1117,29 @@ function inDateRange(value, range) {
 }
 
 function summarizeReports(reports) {
-  return reports.reduce((sum, item) => ({
-    profitDay: sum.profitDay + Number(item.profitDay || 0),
-    profitWeek: sum.profitWeek + Number(item.profitWeek || 0),
-    profitMonth: sum.profitMonth + Number(item.profitMonth || 0),
-    profitTotal: sum.profitTotal + Number(item.profitTotal || 0),
-    tradesDay: sum.tradesDay + Number(item.tradesDay || 0),
-    volumeDay: sum.volumeDay + Number(item.volumeDay || 0)
-  }), { profitDay: 0, profitWeek: 0, profitMonth: 0, profitTotal: 0, tradesDay: 0, volumeDay: 0 });
+  const sum = reports.reduce((acc, item) => ({
+    profitDay: acc.profitDay + Number(item.profitDay || 0),
+    tradesDay: acc.tradesDay + Number(item.tradesDay || 0),
+    volumeDay: acc.volumeDay + Number(item.volumeDay || 0)
+  }), { profitDay: 0, tradesDay: 0, volumeDay: 0 });
+
+  const latestByRobotAccount = new Map();
+  reports.forEach((item) => {
+    const key = `${item.userId}:${item.robotId}:${item.account}`;
+    const current = latestByRobotAccount.get(key);
+    const updatedAt = item.updatedAt || item.createdAt || item.date || "";
+    if (!current || String(updatedAt) >= String(current.updatedAt || current.createdAt || current.date || "")) {
+      latestByRobotAccount.set(key, item);
+    }
+  });
+
+  Array.from(latestByRobotAccount.values()).forEach((item) => {
+    sum.profitWeek = (sum.profitWeek || 0) + Number(item.profitWeek || 0);
+    sum.profitMonth = (sum.profitMonth || 0) + Number(item.profitMonth || 0);
+    sum.profitTotal = (sum.profitTotal || 0) + Number(item.profitTotal || 0);
+  });
+
+  return { profitWeek: 0, profitMonth: 0, profitTotal: 0, ...sum };
 }
 
 function dailySeries(reports) {
@@ -1150,16 +1165,27 @@ function rankingRows(period) {
       profit: 0,
       trades: 0,
       volume: 0,
-      symbols: new Set()
+      symbols: new Set(),
+      latestAt: "",
+      dailyProfitByDate: new Map()
     };
-    current.profit += Number(period === "month" ? item.profitMonth : item.profitDay || 0);
+    if (period === "month") {
+      const updatedAt = item.updatedAt || item.createdAt || item.date || "";
+      if (!current.latestAt || String(updatedAt) >= String(current.latestAt)) {
+        current.profit = Number(item.profitMonth || 0);
+        current.latestAt = updatedAt;
+      }
+    } else {
+      current.dailyProfitByDate.set(item.date, (current.dailyProfitByDate.get(item.date) || 0) + Number(item.profitDay || 0));
+      current.profit = Array.from(current.dailyProfitByDate.values()).reduce((sum, value) => sum + value, 0);
+    }
     current.trades += Number(item.tradesDay || 0);
     current.volume += Number(item.volumeDay || 0);
     if (item.symbol) current.symbols.add(item.symbol);
     grouped.set(key, current);
   });
   return Array.from(grouped.values())
-    .map((item) => ({ ...item, symbols: Array.from(item.symbols) }))
+    .map((item) => ({ ...item, symbols: Array.from(item.symbols), dailyProfitByDate: undefined }))
     .sort((a, b) => b.profit - a.profit);
 }
 
