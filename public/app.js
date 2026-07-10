@@ -1154,8 +1154,9 @@ function dailySeries(reports) {
 }
 
 function rankingRows(period) {
+  const range = getPeriodRange(period === "month" ? "month" : "today");
   const grouped = new Map();
-  performanceReports().forEach((item) => {
+  performanceReports().filter((item) => inDateRange(item.date, range)).forEach((item) => {
     const key = `${item.userId}:${item.robotId}`;
     const current = grouped.get(key) || {
       account: item.account,
@@ -1166,19 +1167,10 @@ function rankingRows(period) {
       trades: 0,
       volume: 0,
       symbols: new Set(),
-      latestAt: "",
       dailyProfitByDate: new Map()
     };
-    if (period === "month") {
-      const updatedAt = item.updatedAt || item.createdAt || item.date || "";
-      if (!current.latestAt || String(updatedAt) >= String(current.latestAt)) {
-        current.profit = Number(item.profitMonth || 0);
-        current.latestAt = updatedAt;
-      }
-    } else {
-      current.dailyProfitByDate.set(item.date, (current.dailyProfitByDate.get(item.date) || 0) + Number(item.profitDay || 0));
-      current.profit = Array.from(current.dailyProfitByDate.values()).reduce((sum, value) => sum + value, 0);
-    }
+    current.dailyProfitByDate.set(item.date, (current.dailyProfitByDate.get(item.date) || 0) + Number(item.profitDay || 0));
+    current.profit = Array.from(current.dailyProfitByDate.values()).reduce((sum, value) => sum + value, 0);
     current.trades += Number(item.tradesDay || 0);
     current.volume += Number(item.volumeDay || 0);
     if (item.symbol) current.symbols.add(item.symbol);
