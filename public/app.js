@@ -285,7 +285,7 @@ function dashboardSummary() {
     inDateRange(check.at, range)
   );
   const pending = (state.data.pendingRequests || []).filter((request) =>
-    users.some((user) => String(user.account) === String(request.account)) || state.dashboardType === "all"
+    users.some((user) => userAccounts(user).some((account) => String(account.account) === String(request.account))) || state.dashboardType === "all"
   );
   const revenue = state.data.licenses
     .filter((license) => userIds.has(license.userId) && license.paidAt && inDateRange(license.paidAt, range))
@@ -494,14 +494,14 @@ function renderUsers() {
     </section>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>Conta</th><th>Usuario</th><th>Telefone</th><th>Status</th><th>Tipo</th><th>Corretora</th><th>Licencas</th><th>Editar</th></tr></thead>
+        <thead><tr><th>Contas</th><th>Usuario</th><th>Telefone</th><th>Status</th><th>Tipo</th><th>Corretora</th><th>Licencas</th><th>Editar</th></tr></thead>
         <tbody>
           ${users.map((user) => {
             const licenses = state.data.licenses.filter((license) => license.userId === user.id);
             const expired = licenses.some((license) => new Date(license.expiresAt) < new Date());
             const active = (user.status || "active") === "active";
             return `<tr class="${expired ? "warn" : ""}">
-              <td><strong>${escapeHtml(user.account)}</strong></td>
+              <td><strong>${escapeHtml(primaryAccount(user))}</strong><div class="muted">${userAccounts(user).length} conta(s)</div></td>
               <td>${escapeHtml(user.name)}</td>
               <td>${escapeHtml(user.phone || "-")}</td>
               <td><span class="badge ${active ? "green" : "red"}">${active ? "Ativo" : "Inativo"}</span></td>
@@ -595,7 +595,7 @@ function renderFinance() {
         }).join("") || paid.map((license) => {
           const user = findUser(license.userId);
           const robot = findRobot(license.robotId);
-          return `<tr><td><span class="badge green">manual</span></td><td>${escapeHtml(robot.name)}</td><td>${escapeHtml(user.account)}</td><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.phone || "-")}</td><td>${formatDate(license.paidAt)}</td><td>${money(license.price)}</td></tr>`;
+          return `<tr><td><span class="badge green">manual</span></td><td>${escapeHtml(robot.name)}</td><td>${escapeHtml(primaryAccount(user))}</td><td>${escapeHtml(user.name)}</td><td>${escapeHtml(user.phone || "-")}</td><td>${formatDate(license.paidAt)}</td><td>${money(license.price)}</td></tr>`;
         }).join("") || `<tr><td colspan="7">Nenhum pagamento registrado.</td></tr>`}</tbody>
       </table>
     </section>
@@ -649,6 +649,7 @@ function renderAdmins() {
 function openUser(userId) {
   const user = findUser(userId);
   const licenses = state.data.licenses.filter((license) => license.userId === userId);
+  const accounts = userAccounts(user);
   const modal = document.querySelector("#modal");
   modal.classList.add("open");
   modal.innerHTML = `
@@ -662,7 +663,7 @@ function openUser(userId) {
       </div>
       <form onsubmit="saveUser(event, '${user.id}')">
         <div class="split">
-          <label>Conta <input name="account" value="${escapeAttr(user.account)}"></label>
+          <label>Conta principal <input name="account" value="${escapeAttr(primaryAccount(user))}"></label>
           <label>Usuario <input name="name" value="${escapeAttr(user.name)}"></label>
           <label>Corretora <input name="broker" value="${escapeAttr(user.broker)}"></label>
           <label>Telefone/WhatsApp <input name="phone" value="${escapeAttr(user.phone || "")}"></label>
@@ -676,6 +677,26 @@ function openUser(userId) {
           <button class="btn btn-red" type="submit">Salvar usuario</button>
           <button class="btn btn-ghost" type="button" onclick="deleteUser('${user.id}')">Excluir usuario</button>
         </div>
+      </form>
+      <hr>
+      <h3>Contas MT5 do cliente</h3>
+      <div class="cards-list">
+        ${accounts.map((account) => `
+          <article class="robot-row">
+            <div>
+              <strong>${escapeHtml(account.account)}</strong>
+              ${account.account === primaryAccount(user) ? `<span class="badge green">Principal</span>` : ""}
+              <div class="muted">${escapeHtml(account.broker || user.broker || "-")} ${account.accountServer ? `- ${escapeHtml(account.accountServer)}` : ""}</div>
+            </div>
+            ${account.account !== primaryAccount(user) ? `<button class="btn btn-ghost" onclick="removeUserAccount('${user.id}', '${escapeAttr(account.account)}')">Remover</button>` : ""}
+          </article>
+        `).join("") || empty("Nenhuma conta vinculada.")}
+      </div>
+      <form class="actions" style="margin-top: 14px" onsubmit="addUserAccount(event, '${user.id}')">
+        <label>Nova conta MT5 <input name="account" required></label>
+        <label>Corretora <input name="broker" placeholder="Opcional"></label>
+        <label>Servidor <input name="accountServer" placeholder="Opcional"></label>
+        <button class="btn btn-red" type="submit">Adicionar conta</button>
       </form>
       <hr>
       <h3>Expert Advisors</h3>
@@ -736,7 +757,7 @@ function openUserPerformance(userId) {
         <h2>Desempenho - ${escapeHtml(user.name)}</h2>
         <button class="btn btn-ghost" onclick="openUser('${user.id}')">Voltar</button>
       </div>
-      <p class="muted">Conta ${escapeHtml(user.account)} - ${escapeHtml(user.broker)}</p>
+      <p class="muted">Conta principal ${escapeHtml(primaryAccount(user))} - ${escapeHtml(user.broker)} - ${userAccounts(user).length} conta(s)</p>
       <div class="metrics compact">
         ${metric("Dia", money(totals.profitDay))}
         ${metric("Semana", money(totals.profitWeek))}
@@ -873,6 +894,23 @@ async function saveUser(event, userId) {
   toast("Usuario salvo");
   closeModal();
   await reload();
+}
+
+async function addUserAccount(event, userId) {
+  event.preventDefault();
+  const addAccount = Object.fromEntries(new FormData(event.target).entries());
+  await api(`/api/users/${userId}`, { method: "PUT", body: JSON.stringify({ addAccount }) });
+  toast("Conta adicionada ao cliente");
+  await reload();
+  openUser(userId);
+}
+
+async function removeUserAccount(userId, account) {
+  if (!confirm(`Remover a conta ${account} deste cliente?`)) return;
+  await api(`/api/users/${userId}`, { method: "PUT", body: JSON.stringify({ removeAccount: account }) });
+  toast("Conta removida");
+  await reload();
+  openUser(userId);
 }
 
 async function deleteUser(userId) {
@@ -1215,6 +1253,16 @@ function checkRow(check) {
 
 function findUser(id) {
   return state.data.users.find((item) => item.id === id) || { name: "-", account: "-", broker: "-" };
+}
+
+function userAccounts(user) {
+  const accounts = Array.isArray(user.accounts) ? user.accounts.filter((item) => item && item.account) : [];
+  if (!accounts.length && user.account) return [{ account: user.account, broker: user.broker || "", primary: true }];
+  return accounts;
+}
+
+function primaryAccount(user) {
+  return user.account || userAccounts(user)[0]?.account || "-";
 }
 
 function findRobot(id) {

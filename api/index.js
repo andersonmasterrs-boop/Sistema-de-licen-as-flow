@@ -9,6 +9,7 @@ const {
   createAdmin,
   updateAdmin,
   createUser,
+  updateUser,
   createRobot,
   createPlan,
   createPayment,
@@ -198,8 +199,10 @@ async function handleAdminById(req, res, id) {
 async function handleUserById(req, res, id) {
   const decodedId = decodeURIComponent(id);
   if (req.method === "PUT") {
-    const user = updateById("users", decodedId, pick(await readBody(req), ["account", "name", "broker", "phone", "status", "type", "notes"]));
+    const body = await readBody(req);
+    const user = updateUser(decodedId, body);
     if (!user) return sendJson(res, 404, { ok: false, error: "USER_NOT_FOUND" });
+    if (body.addAccount && body.addAccount.account) resolvePendingRequestsForAccount(body.addAccount.account);
     await persistDb();
     return sendJson(res, 200, { ok: true, user });
   }
