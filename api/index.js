@@ -332,6 +332,11 @@ async function createMercadoPagoPreference({ payment, plan, robot, req }) {
       pending: `${baseUrl}/comprar?status=pending&payment=${encodeURIComponent(payment.id)}`,
       failure: `${baseUrl}/comprar?status=failure&payment=${encodeURIComponent(payment.id)}`
     },
+    payment_methods: {
+      excluded_payment_types: [
+        { id: "ticket" }
+      ]
+    },
     auto_return: "approved",
     metadata: {
       payment_id: payment.id,
