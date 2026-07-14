@@ -1159,7 +1159,7 @@ function rankingRows(period) {
   const range = getPeriodRange(period === "month" ? "month" : "today");
   const grouped = new Map();
   performanceReports().filter((item) => inDateRange(item.date, range)).forEach((item) => {
-    const key = `${item.userId}:${item.robotId}`;
+    const key = `${item.userId}:${item.robotId}:${item.account}`;
     const current = grouped.get(key) || {
       account: item.account,
       userName: accountHolderName(item.account, item.userName),
