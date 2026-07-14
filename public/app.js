@@ -686,6 +686,7 @@ function openUser(userId) {
             <div>
               <strong>${escapeHtml(account.account)}</strong>
               ${account.account === primaryAccount(user) ? `<span class="badge green">Principal</span>` : ""}
+              <div class="muted">Titular: ${escapeHtml(account.name || user.name || "-")}</div>
               <div class="muted">${escapeHtml(account.broker || user.broker || "-")} ${account.accountServer ? `- ${escapeHtml(account.accountServer)}` : ""}</div>
             </div>
             ${account.account !== primaryAccount(user) ? `<button class="btn btn-ghost" onclick="removeUserAccount('${user.id}', '${escapeAttr(account.account)}')">Remover</button>` : ""}
@@ -694,6 +695,7 @@ function openUser(userId) {
       </div>
       <form class="actions" style="margin-top: 14px" onsubmit="addUserAccount(event, '${user.id}')">
         <label>Nova conta MT5 <input name="account" required></label>
+        <label>Titular da conta <input name="name" placeholder="Opcional"></label>
         <label>Corretora <input name="broker" placeholder="Opcional"></label>
         <label>Servidor <input name="accountServer" placeholder="Opcional"></label>
         <button class="btn btn-red" type="submit">Adicionar conta</button>
@@ -1160,8 +1162,8 @@ function rankingRows(period) {
     const key = `${item.userId}:${item.robotId}`;
     const current = grouped.get(key) || {
       account: item.account,
-      userName: item.userName,
-      broker: item.broker,
+      userName: accountHolderName(item.account, item.userName),
+      broker: accountBrokerName(item.account, item.broker),
       robot: item.robot,
       profit: 0,
       trades: 0,
@@ -1277,6 +1279,25 @@ function userAccounts(user) {
   const accounts = Array.isArray(user.accounts) ? user.accounts.filter((item) => item && item.account) : [];
   if (!accounts.length && user.account) return [{ account: user.account, broker: user.broker || "", primary: true }];
   return accounts;
+}
+
+function accountEntry(account) {
+  const value = String(account || "");
+  for (const user of state.data.users || []) {
+    const entry = userAccounts(user).find((item) => String(item.account) === value);
+    if (entry) return { user, entry };
+  }
+  return null;
+}
+
+function accountHolderName(account, fallback = "-") {
+  const linked = accountEntry(account);
+  return linked?.entry?.name || fallback || linked?.user?.name || "-";
+}
+
+function accountBrokerName(account, fallback = "-") {
+  const linked = accountEntry(account);
+  return linked?.entry?.broker || fallback || linked?.user?.broker || "-";
 }
 
 function primaryAccount(user) {
