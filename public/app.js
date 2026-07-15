@@ -1044,8 +1044,8 @@ async function extendLicense(licenseId, days) {
   const license = state.data.licenses.find((item) => item.id === licenseId);
   const date = new Date(Math.max(Date.now(), new Date(license.expiresAt).getTime()));
   date.setDate(date.getDate() + days);
-  await api(`/api/licenses/${licenseId}`, { method: "PUT", body: JSON.stringify({ expiresAt: date.toISOString(), status: "active" }) });
-  toast("Licenca prorrogada");
+  await api(`/api/licenses/${licenseId}`, { method: "PUT", body: JSON.stringify({ expiresAt: date.toISOString(), status: "active", type: "REAL" }) });
+  toast("Licenca efetivada e prorrogada");
   closeModal();
   await reload();
   openUser(license.userId);
