@@ -536,7 +536,7 @@ function renderRobots() {
             <span class="badge red">${escapeHtml(robot.version)}</span>
             <span class="badge green">${escapeHtml(robot.status)}</span>
             <span class="badge">${robot.clients} clientes</span>
-            <div class="muted">${escapeHtml(robot.message || "Sem mensagem ativa")}</div>
+            <div class="muted">${escapeHtml(robot.messageId ? robot.message : (robot.message ? "Mensagem antiga sem disparo ativo" : "Sem mensagem ativa"))}</div>
           </div>
           <button class="btn btn-blue" onclick="openRobotMessage('${robot.id}')">Mensagem</button>
         </article>
@@ -999,12 +999,13 @@ function openRobotMessage(robotId) {
         <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
       </div>
       <form onsubmit="saveRobotMessage(event, '${robot.id}')">
-        <label>Mensagem enviada ao MT5
+        <label>Novo aviso para enviar uma vez no MT5
           <textarea name="message" rows="5" placeholder="Ex: Nova versao disponivel. Atualize seu robo hoje.">${escapeHtml(robot.message || "")}</textarea>
         </label>
+        <div class="muted">Ao salvar, este texto vira um novo disparo e cada conta recebe apenas uma vez. Limpe a mensagem para cancelar disparos futuros.</div>
         <br>
         <div class="actions">
-          <button class="btn btn-red" type="submit">Salvar mensagem</button>
+          <button class="btn btn-red" type="submit">Salvar novo disparo</button>
           <button class="btn btn-ghost" type="button" onclick="clearRobotMessage('${robot.id}')">Limpar</button>
         </div>
       </form>
@@ -1016,7 +1017,7 @@ async function saveRobotMessage(event, robotId) {
   event.preventDefault();
   const body = Object.fromEntries(new FormData(event.target).entries());
   await api(`/api/robots/${robotId}`, { method: "PUT", body: JSON.stringify(body) });
-  toast("Mensagem salva");
+  toast("Disparo de mensagem salvo");
   closeModal();
   await reload();
 }
