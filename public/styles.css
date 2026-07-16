@@ -219,6 +219,7 @@ textarea {
 .metric {
   padding: 20px;
   min-height: 102px;
+  min-width: 0;
 }
 
 .metric span {
@@ -233,6 +234,8 @@ textarea {
   display: block;
   margin-top: 8px;
   font-size: 28px;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
 }
 
 .positive {
@@ -426,7 +429,7 @@ tr.warn {
   padding: 18px;
   margin-top: 14px;
   margin-bottom: 0;
-  background: rgba(0,0,0,.16);
+  background: #101111;
 }
 
 .robot-row,
@@ -441,13 +444,18 @@ tr.warn {
   border-radius: 8px;
 }
 
+.robot-row > div,
+.check-row > div {
+  min-width: 0;
+}
+
 .modal {
   position: fixed;
   inset: 0;
   display: none;
   place-items: center;
   padding: 24px;
-  background: rgba(0,0,0,.72);
+  background: rgba(0,0,0,.82);
   z-index: 20;
 }
 
@@ -460,6 +468,32 @@ tr.warn {
   max-height: min(760px, calc(100vh - 32px));
   overflow: auto;
   padding: 24px;
+  background: #0f1010;
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+}
+
+.modal-card .metrics.compact {
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+}
+
+.modal-card .metric {
+  min-height: 86px;
+  padding: 16px;
+  background: #151616;
+}
+
+.modal-card .metric strong {
+  font-size: 22px;
+}
+
+.modal-card .panel.inset {
+  border-color: #303333;
+  background: #121313;
+}
+
+.modal-card .robot-row,
+.modal-card .check-row {
+  background: #171818;
 }
 
 .split {

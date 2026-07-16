@@ -873,8 +873,14 @@ function openLicenseDetails(licenseId) {
         <div class="metrics compact">
           ${metric("Valor", money(license.price))}
           ${metric("Pagamento", formatDate(license.paidAt))}
-          ${metric("Chave", escapeHtml(license.key))}
         </div>
+        <article class="check-row">
+          <div>
+            <strong>Chave</strong>
+            <div class="muted">${escapeHtml(license.key)}</div>
+          </div>
+          <button class="btn btn-ghost" onclick="copyText('${escapeAttr(license.key)}')">Copiar</button>
+        </article>
       </section>
       <section class="panel inset">
         <h3>Contas vinculadas</h3>
