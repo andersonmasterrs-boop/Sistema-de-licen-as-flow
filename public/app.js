@@ -573,6 +573,7 @@ function renderRobots() {
             <span class="badge red">${escapeHtml(robot.version)}</span>
             <span class="badge green">${escapeHtml(robot.status)}</span>
             <span class="badge">${robot.clients} clientes</span>
+            <span class="badge">versao informativa</span>
             <div class="muted">${escapeHtml(robot.messageId ? robot.message : (robot.message ? "Mensagem antiga sem disparo ativo" : "Sem mensagem ativa"))}</div>
           </div>
           <button class="btn btn-blue" onclick="openRobotMessage('${robot.id}')">Mensagem</button>
