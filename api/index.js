@@ -15,6 +15,7 @@ const {
   createPayment,
   applyApprovedPayment,
   createLicense,
+  addAudit,
   updateById,
   removeById,
   resolvePendingRequestsForAccount,
@@ -145,6 +146,7 @@ async function handleUsers(req, res) {
     const user = createUser(await readBody(req));
     db.users.unshift(user);
     resolvePendingRequestsForAccount(user.account);
+    addAudit("USER_CREATED", { userId: user.id, user: user.name, account: user.account });
     await persistDb();
     return sendJson(res, 201, { ok: true, user });
   }
@@ -157,6 +159,7 @@ async function handleAdmins(req, res) {
   if (req.method === "POST") {
     const admin = createAdmin(await readBody(req));
     db.admins.unshift(admin);
+    addAudit("ADMIN_CREATED", { adminId: admin.id, username: admin.username });
     await persistDb();
     const { passwordHash, passwordSalt, ...publicAdmin } = admin;
     return sendJson(res, 201, { ok: true, admin: publicAdmin });
@@ -176,6 +179,7 @@ async function handleAdminById(req, res, id) {
     }
     const admin = updateAdmin(decodedId, body);
     if (!admin) return sendJson(res, 404, { ok: false, error: "ADMIN_NOT_FOUND" });
+    addAudit("ADMIN_UPDATED", { adminId: admin.id, username: admin.username });
     await persistDb();
     const { passwordHash, passwordSalt, ...publicAdmin } = admin;
     return sendJson(res, 200, { ok: true, admin: publicAdmin });
@@ -189,6 +193,7 @@ async function handleAdminById(req, res, id) {
       return sendJson(res, 400, { ok: false, error: "LAST_ADMIN_REQUIRED" });
     }
     removeById("admins", decodedId);
+    addAudit("ADMIN_DELETED", { adminId: decodedId });
     await persistDb();
     return sendJson(res, 200, { ok: true });
   }
@@ -203,6 +208,7 @@ async function handleUserById(req, res, id) {
     const user = updateUser(decodedId, body);
     if (!user) return sendJson(res, 404, { ok: false, error: "USER_NOT_FOUND" });
     if (body.addAccount && body.addAccount.account) resolvePendingRequestsForAccount(body.addAccount.account);
+    addAudit("USER_UPDATED", { userId: user.id, user: user.name, account: user.account });
     await persistDb();
     return sendJson(res, 200, { ok: true, user });
   }
@@ -211,6 +217,7 @@ async function handleUserById(req, res, id) {
     const db = getDb();
     removeById("users", decodedId);
     db.licenses = db.licenses.filter((item) => item.userId !== decodedId);
+    addAudit("USER_DELETED", { userId: decodedId });
     await persistDb();
     return sendJson(res, 200, { ok: true });
   }
@@ -224,6 +231,7 @@ async function handleRobots(req, res) {
   if (req.method === "POST") {
     const robot = createRobot(await readBody(req));
     db.robots.unshift(robot);
+    addAudit("ROBOT_CREATED", { robotId: robot.id, robot: robot.name });
     await persistDb();
     return sendJson(res, 201, { ok: true, robot });
   }
@@ -236,6 +244,7 @@ async function handlePlans(req, res) {
   if (req.method === "POST") {
     const plan = createPlan(await readBody(req));
     db.plans.unshift(plan);
+    addAudit("PLAN_CREATED", { planId: plan.id, plan: plan.name });
     await persistDb();
     return sendJson(res, 201, { ok: true, plan });
   }
@@ -247,11 +256,13 @@ async function handlePlanById(req, res, id) {
   if (req.method === "PUT") {
     const plan = updateById("plans", decodedId, pick(await readBody(req), ["name", "description", "robotId", "durationDays", "price", "status"]));
     if (!plan) return sendJson(res, 404, { ok: false, error: "PLAN_NOT_FOUND" });
+    addAudit("PLAN_UPDATED", { planId: plan.id, plan: plan.name });
     await persistDb();
     return sendJson(res, 200, { ok: true, plan });
   }
   if (req.method === "DELETE") {
     removeById("plans", decodedId);
+    addAudit("PLAN_DELETED", { planId: decodedId });
     await persistDb();
     return sendJson(res, 200, { ok: true });
   }
@@ -268,6 +279,7 @@ async function handleRobotById(req, res, id) {
   if (req.method !== "PUT") return methodNotAllowed(res);
   const robot = updateById("robots", decodeURIComponent(id), pick(await readBody(req), ["name", "version", "status", "message"]));
   if (!robot) return sendJson(res, 404, { ok: false, error: "ROBOT_NOT_FOUND" });
+  addAudit("ROBOT_UPDATED", { robotId: robot.id, robot: robot.name });
   await persistDb();
   return sendJson(res, 200, { ok: true, robot });
 }
@@ -386,9 +398,16 @@ async function handleMercadoPagoWebhook(req) {
 
   if (mercadoPagoPayment.status === "approved") {
     payment.paidAt = mercadoPagoPayment.date_approved || new Date().toISOString();
-    applyApprovedPayment(payment, {
+    const result = applyApprovedPayment(payment, {
       providerPaymentId: mercadoPagoPayment.id,
       rawStatus: mercadoPagoPayment.status
+    });
+    addAudit("PAYMENT_APPROVED", {
+      paymentId: payment.id,
+      licenseId: result.license.id,
+      userId: result.user.id,
+      robotId: result.license.robotId,
+      amount: payment.amount
     });
     return { received: true, paymentId: payment.id, status: "approved" };
   }
@@ -426,6 +445,7 @@ async function handleLicenses(req, res) {
   if (req.method === "POST") {
     const license = createLicense(await readBody(req));
     db.licenses.unshift(license);
+    addAudit("LICENSE_CREATED", { licenseId: license.id, userId: license.userId, robotId: license.robotId, type: license.type });
     await persistDb();
     return sendJson(res, 201, { ok: true, license });
   }
@@ -437,12 +457,14 @@ async function handleLicenseById(req, res, id) {
   if (req.method === "PUT") {
     const license = updateById("licenses", decodedId, pick(await readBody(req), ["status", "type", "price", "paidAt", "expiresAt", "key"]));
     if (!license) return sendJson(res, 404, { ok: false, error: "LICENSE_NOT_FOUND" });
+    addAudit("LICENSE_UPDATED", { licenseId: license.id, userId: license.userId, robotId: license.robotId, type: license.type, status: license.status });
     await persistDb();
     return sendJson(res, 200, { ok: true, license });
   }
 
   if (req.method === "DELETE") {
     removeById("licenses", decodedId);
+    addAudit("LICENSE_DELETED", { licenseId: decodedId });
     await persistDb();
     return sendJson(res, 200, { ok: true });
   }

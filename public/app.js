@@ -8,7 +8,8 @@ const state = {
   dashboardPeriod: "30",
   rankingPeriod: "month",
   rankingFrom: "",
-  rankingTo: ""
+  rankingTo: "",
+  userSearch: ""
 };
 
 const navItems = [
@@ -312,6 +313,7 @@ function dashboardSummary() {
 function renderDashboard() {
   const s = dashboardSummary();
   const perf = performanceSummary({ type: state.dashboardType, period: state.dashboardPeriod });
+  const alerts = licenseAlerts();
   return `
     <section class="panel hero-panel">
       <h1>Painel operacional <span class="badge green">LIVE</span></h1>
@@ -336,6 +338,14 @@ function renderDashboard() {
       ${metric("Checks no periodo", s.checksToday)}
       ${metric("Pendentes", s.pendingRequests || 0)}
     </section>
+    ${alerts.length ? `
+      <section class="panel">
+        <h2>Atencao</h2>
+        <div class="cards-list">
+          ${alerts.map(alertRow).join("")}
+        </div>
+      </section>
+    ` : ""}
     <section class="panel">
       <h2>Resumo financeiro</h2>
       <div class="metric"><span>Faturado no periodo</span><strong>${money(s.revenue)}</strong></div>
@@ -477,7 +487,7 @@ function renderReports() {
 }
 
 function renderUsers() {
-  const users = state.data.users;
+  const users = filteredUsers();
   const pending = state.data.pendingRequests || [];
   return `
     ${pending.length ? `
@@ -505,6 +515,9 @@ function renderUsers() {
     ` : ""}
     <section class="panel">
       <h1>Usuarios e licencas</h1>
+      <div class="filters">
+        <label>Busca <input value="${escapeAttr(state.userSearch)}" placeholder="Nome, conta, telefone, corretora..." oninput="setDashboardFilter('userSearch', this.value)"></label>
+      </div>
       <form class="actions" onsubmit="createUser(event)">
         <label>Conta <input name="account" required></label>
         <label>Usuario <input name="name" required></label>
@@ -534,6 +547,7 @@ function renderUsers() {
               <td><button class="btn btn-ghost" onclick="openUser('${user.id}')">Editar</button></td>
             </tr>`;
           }).join("")}
+          ${!users.length ? `<tr><td colspan="8">Nenhum usuario encontrado.</td></tr>` : ""}
         </tbody>
       </table>
     </section>
@@ -804,19 +818,87 @@ function openUserPerformance(userId) {
 function licenseCard(license) {
   const robot = findRobot(license.robotId);
   const expired = new Date(license.expiresAt) < new Date();
+  const effectiveType = String(license.type || "REAL").toUpperCase();
   return `
     <article class="robot-row">
       <div>
         <strong>${escapeHtml(robot.name)}</strong>
         <span class="badge ${license.status === "active" && !expired ? "green" : "red"}">${expired ? "expirado" : license.status}</span>
+        <span class="badge">${escapeHtml(effectiveType)}</span>
         <span class="badge">${formatDate(license.expiresAt)}</span>
+        ${Number(license.price || 0) > 0 ? `<span class="badge green">${money(license.price)}</span>` : ""}
         <div class="muted">Chave: ${escapeHtml(license.key)}</div>
       </div>
       <div class="actions">
+        <button class="btn btn-blue" onclick="openLicenseDetails('${license.id}')">Detalhes</button>
         <button class="btn btn-ghost" onclick="copyText('${escapeAttr(license.key)}')">Copiar chave</button>
+        ${effectiveType === "TRIAL" ? `<button class="btn btn-ghost" onclick="openConvertLicense('${license.id}')">Converter para paga</button>` : ""}
         <button class="btn btn-ghost" onclick="extendLicense('${license.id}', 365)">+1 ano</button>
         <button class="btn btn-red" onclick="deleteLicense('${license.id}')">Excluir</button>
       </div>
+    </article>
+  `;
+}
+
+function openLicenseDetails(licenseId) {
+  const license = state.data.licenses.find((item) => item.id === licenseId);
+  if (!license) return toast("Licenca nao encontrada");
+  const user = findUser(license.userId);
+  const robot = findRobot(license.robotId);
+  const checks = (state.data.checkIns || [])
+    .filter((item) => item.licenseId === license.id || (item.userId === user.id && item.robotId === robot.id))
+    .slice(0, 8);
+  const payments = (state.data.payments || [])
+    .filter((item) => item.licenseId === license.id || (item.userId === user.id && item.robotId === robot.id))
+    .slice(0, 6);
+  const audits = (state.data.auditLog || [])
+    .filter((item) => item.details?.licenseId === license.id || item.details?.userId === user.id || item.details?.robotId === robot.id)
+    .slice(0, 8);
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>Licenca - ${escapeHtml(robot.name)}</h2>
+        <button class="btn btn-ghost" onclick="openUser('${user.id}')">Voltar</button>
+      </div>
+      <div class="metrics compact">
+        ${metric("Cliente", escapeHtml(user.name))}
+        ${metric("Status", escapeHtml(license.status))}
+        ${metric("Tipo", escapeHtml(license.type || "REAL"))}
+        ${metric("Vencimento", formatDate(license.expiresAt))}
+      </div>
+      <section class="panel inset">
+        <h3>Dados comerciais</h3>
+        <div class="metrics compact">
+          ${metric("Valor", money(license.price))}
+          ${metric("Pagamento", formatDate(license.paidAt))}
+          ${metric("Chave", escapeHtml(license.key))}
+        </div>
+      </section>
+      <section class="panel inset">
+        <h3>Contas vinculadas</h3>
+        <div class="cards-list">${userAccounts(user).map((account) => `
+          <article class="robot-row">
+            <div>
+              <strong>${escapeHtml(account.account)}</strong>
+              <div class="muted">${escapeHtml(account.name || user.name || "-")} - ${escapeHtml(account.broker || user.broker || "-")}</div>
+            </div>
+          </article>
+        `).join("") || `<div class="muted">Nenhuma conta vinculada.</div>`}</div>
+      </section>
+      <section class="panel inset">
+        <h3>Ultimos check-ins</h3>
+        <div class="cards-list">${checks.map(checkRow).join("") || `<div class="muted">Nenhuma verificacao registrada.</div>`}</div>
+      </section>
+      <section class="panel inset">
+        <h3>Pagamentos</h3>
+        <div class="cards-list">${payments.map(paymentRow).join("") || `<div class="muted">Nenhum pagamento vinculado.</div>`}</div>
+      </section>
+      <section class="panel inset">
+        <h3>Auditoria</h3>
+        <div class="cards-list">${audits.map(auditRow).join("") || `<div class="muted">Nenhuma acao registrada.</div>`}</div>
+      </section>
     </article>
   `;
 }
@@ -1070,6 +1152,54 @@ async function extendLicense(licenseId, days) {
   date.setDate(date.getDate() + days);
   await api(`/api/licenses/${licenseId}`, { method: "PUT", body: JSON.stringify({ expiresAt: date.toISOString(), status: "active", type: "REAL" }) });
   toast("Licenca efetivada e prorrogada");
+  closeModal();
+  await reload();
+  openUser(license.userId);
+}
+
+function openConvertLicense(licenseId) {
+  const license = state.data.licenses.find((item) => item.id === licenseId);
+  const date = new Date(Math.max(Date.now(), new Date(license.expiresAt).getTime()));
+  if (String(license.type || "").toUpperCase() === "TRIAL") date.setDate(date.getDate() + 365);
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>Converter licenca</h2>
+        <button class="btn btn-ghost" onclick="openUser('${license.userId}')">Voltar</button>
+      </div>
+      <form onsubmit="convertLicense(event, '${license.id}')">
+        <div class="split">
+          <label>Valor pago <input name="price" type="number" step="0.01" min="0" value="${escapeAttr(license.price || "")}"></label>
+          <label>Data de pagamento <input name="paidAt" type="date" value="${todayISO()}"></label>
+          <label>Expira em <input name="expiresAt" type="datetime-local" value="${dateTimeInputValue(date)}"></label>
+        </div>
+        <br>
+        <div class="actions">
+          <button class="btn btn-red" type="submit">Converter para paga</button>
+          <button class="btn btn-ghost" type="button" onclick="openUser('${license.userId}')">Cancelar</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+async function convertLicense(event, licenseId) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.target).entries());
+  const license = state.data.licenses.find((item) => item.id === licenseId);
+  await api(`/api/licenses/${licenseId}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      status: "active",
+      type: "REAL",
+      price: Number(body.price || 0),
+      paidAt: body.paidAt || todayISO(),
+      expiresAt: new Date(body.expiresAt).toISOString()
+    })
+  });
+  toast("Licenca convertida para paga");
   closeModal();
   await reload();
   openUser(license.userId);
@@ -1340,8 +1470,91 @@ function checkRow(check) {
   `;
 }
 
+function paymentRow(payment) {
+  const plan = findPlan(payment.planId);
+  return `
+    <article class="check-row">
+      <div>
+        <strong>${escapeHtml(plan.name || payment.provider || "Pagamento")}</strong>
+        <div class="muted">${escapeHtml(payment.account || "-")} - ${formatDate(payment.paidAt || payment.updatedAt || payment.createdAt)}</div>
+      </div>
+      <span class="badge ${payment.status === "approved" ? "green" : payment.status === "pending" ? "" : "red"}">${money(payment.amount)}</span>
+    </article>
+  `;
+}
+
+function auditRow(audit) {
+  return `
+    <article class="check-row">
+      <div>
+        <strong>${escapeHtml(audit.action || "ACAO")}</strong>
+        <div class="muted">${formatDate(audit.at)}</div>
+      </div>
+      <span class="badge">${escapeHtml(audit.details?.account || audit.details?.user || audit.details?.robot || audit.details?.licenseId || "-")}</span>
+    </article>
+  `;
+}
+
+function alertRow(alert) {
+  return `
+    <article class="robot-row">
+      <div>
+        <strong>${escapeHtml(alert.title)}</strong>
+        <div class="muted">${escapeHtml(alert.text)}</div>
+      </div>
+      <button class="btn btn-ghost" onclick="openUser('${alert.userId}')">Abrir</button>
+    </article>
+  `;
+}
+
 function findUser(id) {
   return state.data.users.find((item) => item.id === id) || { name: "-", account: "-", broker: "-" };
+}
+
+function filteredUsers() {
+  const term = normalizeSearch(state.userSearch);
+  if (!term) return state.data.users;
+  return state.data.users.filter((user) => {
+    const haystack = [
+      user.name,
+      user.phone,
+      user.broker,
+      user.status,
+      user.type,
+      ...userAccounts(user).flatMap((account) => [account.account, account.name, account.broker, account.accountServer])
+    ].map(normalizeSearch).join(" ");
+    return haystack.includes(term);
+  });
+}
+
+function licenseAlerts() {
+  const now = new Date();
+  const soon = new Date(now);
+  soon.setDate(soon.getDate() + 7);
+  return (state.data.licenses || [])
+    .filter((license) => license.status === "active")
+    .map((license) => {
+      const expiresAt = new Date(license.expiresAt);
+      if (expiresAt > soon) return null;
+      const user = findUser(license.userId);
+      const robot = findRobot(license.robotId);
+      const expired = expiresAt < now;
+      return {
+        userId: user.id,
+        title: `${robot.name} - ${user.name}`,
+        text: `${expired ? "Vencida" : "Vence em breve"} em ${formatDate(license.expiresAt)}`
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function userAccounts(user) {
@@ -1410,6 +1623,10 @@ function formatDate(value) {
 function defaultDateInput() {
   const date = new Date();
   date.setFullYear(date.getFullYear() + 1);
+  return dateTimeInputValue(date);
+}
+
+function dateTimeInputValue(date) {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 16);
 }
