@@ -290,6 +290,8 @@ async function createCheckout(body, req) {
   if (!plan) throw new Error("PLAN_NOT_FOUND");
   const robot = db.robots.find((item) => item.id === plan.robotId);
   if (!robot) throw new Error("ROBOT_NOT_FOUND");
+  if (!String(body.email || "").trim()) throw new Error("EMAIL_REQUIRED");
+  if (!onlyDigits(body.document || body.cpf || body.cnpj)) throw new Error("DOCUMENT_REQUIRED");
 
   const payment = createPayment({
     provider: "mercadopago",
@@ -298,6 +300,8 @@ async function createCheckout(body, req) {
     robotId: robot.id,
     account: body.account,
     name: body.name,
+    email: body.email,
+    document: body.document || body.cpf || body.cnpj,
     phone: body.phone,
     broker: body.broker,
     type: body.type || "Real",
@@ -333,10 +337,7 @@ async function createMercadoPagoPreference({ payment, plan, robot, req }) {
         unit_price: Number(plan.price || 0)
       }
     ],
-    payer: {
-      name: payment.name,
-      phone: { number: payment.phone }
-    },
+    payer: buildMercadoPagoPayer(payment),
     external_reference: payment.externalReference,
     notification_url: `${baseUrl}/api/payments/mercadopago/webhook`,
     back_urls: {
@@ -371,6 +372,34 @@ async function createMercadoPagoPreference({ payment, plan, robot, req }) {
     throw new Error(data.message || data.error || `MERCADOPAGO_PREFERENCE_FAILED_${response.status}`);
   }
   return data;
+}
+
+function buildMercadoPagoPayer(payment) {
+  const phone = onlyDigits(payment.phone);
+  const document = onlyDigits(payment.document);
+  const payer = {
+    name: payment.name,
+    email: payment.email || undefined
+  };
+
+  if (phone) {
+    payer.phone = phone.length > 2
+      ? { area_code: phone.slice(0, 2), number: phone.slice(2) }
+      : { number: phone };
+  }
+
+  if (document) {
+    payer.identification = {
+      type: document.length > 11 ? "CNPJ" : "CPF",
+      number: document
+    };
+  }
+
+  return payer;
+}
+
+function onlyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
 }
 
 async function handleMercadoPagoWebhook(req) {

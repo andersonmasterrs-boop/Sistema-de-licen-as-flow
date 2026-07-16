@@ -153,6 +153,10 @@ function renderCheckoutContent() {
           <br>
           <label>Nome <input name="name" required placeholder="Nome do titular"></label>
           <br>
+          <label>E-mail <input name="email" type="email" required placeholder="email do comprador"></label>
+          <br>
+          <label>CPF/CNPJ <input name="document" required inputmode="numeric" placeholder="Somente numeros"></label>
+          <br>
           <label>Telefone/WhatsApp <input name="phone" required placeholder="DDD + numero"></label>
           <br>
           <label>Corretora <input name="broker" placeholder="Ex: Genial, XP, Banco"></label>
@@ -619,7 +623,7 @@ function renderFinance() {
     </section>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>Status</th><th>Plano</th><th>Conta</th><th>Cliente</th><th>Telefone</th><th>Pagamento</th><th>Total</th></tr></thead>
+        <thead><tr><th>Status</th><th>Plano</th><th>Conta</th><th>Cliente</th><th>Contato</th><th>Pagamento</th><th>Total</th></tr></thead>
         <tbody>${payments.map((payment) => {
           const plan = findPlan(payment.planId);
           return `<tr>
@@ -627,7 +631,7 @@ function renderFinance() {
             <td>${escapeHtml(plan.name || "-")}</td>
             <td><strong>${escapeHtml(payment.account)}</strong></td>
             <td>${escapeHtml(payment.name)}</td>
-            <td>${escapeHtml(payment.phone || "-")}</td>
+            <td>${escapeHtml(payment.phone || "-")}<div class="muted">${escapeHtml(payment.email || payment.document || "-")}</div></td>
             <td>${formatDate(payment.paidAt || payment.updatedAt)}</td>
             <td>${money(payment.amount)}</td>
           </tr>`;
