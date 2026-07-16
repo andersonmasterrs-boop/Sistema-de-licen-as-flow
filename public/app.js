@@ -149,9 +149,7 @@ function renderCheckoutContent() {
             </select>
           </label>
           <br>
-          <label>Numero da conta MT5 <input name="account" required inputmode="numeric" placeholder="Ex: 1951361"></label>
-          <br>
-          <label>Nome <input name="name" required placeholder="Nome do titular"></label>
+          <label>Nome <input name="name" required placeholder="Nome completo do comprador"></label>
           <br>
           <label>E-mail <input name="email" type="email" required placeholder="email do comprador"></label>
           <br>
@@ -164,7 +162,7 @@ function renderCheckoutContent() {
           <label>Tipo de conta <select name="type"><option>Real</option><option>Demo</option></select></label>
           <br>
           <button class="btn btn-red" type="submit" ${plans.length ? "" : "disabled"}>Ir para pagamento</button>
-          <p class="muted" style="margin-top: 12px">Apos a aprovacao do pagamento, a licenca e liberada automaticamente para a conta informada.</p>
+          <p class="muted" style="margin-top: 12px">Apos a aprovacao, abra o robo no MT5 e preencha o mesmo WhatsApp nos parametros para vincular a conta automaticamente.</p>
         </form>
       </div>
     </section>
