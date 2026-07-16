@@ -5,7 +5,10 @@ const state = {
   checkout: null,
   editingUserId: null,
   dashboardType: "all",
-  dashboardPeriod: "30"
+  dashboardPeriod: "30",
+  rankingPeriod: "month",
+  rankingFrom: "",
+  rankingTo: ""
 };
 
 const navItems = [
@@ -270,6 +273,11 @@ function setDashboardFilter(key, value) {
   renderView();
 }
 
+function setRankingFilter(key, value) {
+  state[key] = value;
+  renderView();
+}
+
 function dashboardSummary() {
   const range = getPeriodRange(state.dashboardPeriod);
   const users = usersByType(state.dashboardType);
@@ -359,12 +367,27 @@ function renderMonitor() {
 }
 
 function renderRanking() {
-  const rows = rankingRows("month");
+  const period = state.rankingPeriod || "month";
+  const range = getRankingRange();
+  const rows = rankingRows(period, range);
   const top = rows.slice(0, 3);
   return `
     <section class="panel hero-panel">
-      <h1>Ranking do mes</h1>
-      <p class="muted">Contas ordenadas pelo lucro enviado pelos robos.</p>
+      <h1>Ranking</h1>
+      <p class="muted">Contas ordenadas pelo lucro enviado pelos robos no periodo selecionado.</p>
+      <div class="filters">
+        <label>Periodo <select onchange="setRankingFilter('rankingPeriod', this.value)">
+          <option value="today" ${period === "today" ? "selected" : ""}>Dia</option>
+          <option value="week" ${period === "week" ? "selected" : ""}>Semana</option>
+          <option value="month" ${period === "month" ? "selected" : ""}>Mes</option>
+          <option value="custom" ${period === "custom" ? "selected" : ""}>Periodo</option>
+        </select></label>
+        ${period === "custom" ? `
+          <label>Inicio <input type="date" value="${escapeAttr(rankingDateValue("rankingFrom"))}" onchange="setRankingFilter('rankingFrom', this.value)"></label>
+          <label>Fim <input type="date" value="${escapeAttr(rankingDateValue("rankingTo"))}" onchange="setRankingFilter('rankingTo', this.value)"></label>
+        ` : ""}
+      </div>
+      <div class="muted">Exibindo: ${escapeHtml(periodLabel(period, range))}</div>
     </section>
     <section class="podium">
       ${top.map((row, index) => podiumCard(row, index + 1)).join("") || empty("Nenhum resultado para ranquear ainda.")}
@@ -1106,11 +1129,56 @@ function getPeriodRange(period) {
 
   if (period === "30") {
     start.setDate(start.getDate() - 29);
+  } else if (period === "week") {
+    const day = start.getDay();
+    start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
   } else if (period === "month") {
     start.setDate(1);
   }
 
   return { start, end };
+}
+
+function getCustomRange(fromValue, toValue) {
+  const from = parseDateInput(fromValue || todayISO());
+  const to = parseDateInput(toValue || fromValue || todayISO());
+  const start = from <= to ? from : to;
+  const end = from <= to ? to : from;
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function getRankingRange() {
+  const period = state.rankingPeriod || "month";
+  if (period === "custom") return getCustomRange(rankingDateValue("rankingFrom"), rankingDateValue("rankingTo"));
+  return getPeriodRange(period);
+}
+
+function rankingDateValue(key) {
+  if (state[key]) return state[key];
+  return key === "rankingFrom" ? todayISO() : todayISO();
+}
+
+function todayISO() {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+
+function parseDateInput(value) {
+  const date = new Date(`${value || todayISO()}T12:00:00`);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function periodLabel(period, range) {
+  const start = range.start.toLocaleDateString("pt-BR");
+  const end = range.end.toLocaleDateString("pt-BR");
+  if (period === "today") return `dia ${start}`;
+  if (period === "week") return `semana de ${start} ate ${end}`;
+  if (period === "month") return `mes atual, de ${start} ate ${end}`;
+  return `${start} ate ${end}`;
 }
 
 function inDateRange(value, range) {
@@ -1156,10 +1224,10 @@ function dailySeries(reports) {
     .map(([date, profit]) => ({ date, profit }));
 }
 
-function rankingRows(period) {
-  const range = getPeriodRange(period === "month" ? "month" : "today");
+function rankingRows(period, range = null) {
+  const selectedRange = range || getPeriodRange(period || "today");
   const grouped = new Map();
-  performanceReports().filter((item) => inDateRange(item.date, range)).forEach((item) => {
+  performanceReports().filter((item) => inDateRange(item.date, selectedRange)).forEach((item) => {
     const key = `${item.userId}:${item.robotId}:${item.account}`;
     const current = grouped.get(key) || {
       account: item.account,
