@@ -814,6 +814,23 @@ bool ObterCestaDoRobo(double &volCompra, double &volVenda, double &precoMedioCom
    return (volCompra > 0.0 || volVenda > 0.0);
 }
 
+double ResultadoAbertoRobo()
+{
+   double total = 0.0;
+   for(int i=PositionsTotal()-1; i>=0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+      if((ulong)PositionGetInteger(POSITION_MAGIC) != NumeroMagico) continue;
+
+      total += PositionGetDouble(POSITION_PROFIT)
+             + PositionGetDouble(POSITION_SWAP);
+   }
+   return total;
+}
+
 bool FecharPosicaoDoRobo()
 {
    if(fechandoCesta) return false;
@@ -2461,7 +2478,7 @@ void AtualizarPainel()
 
    int qtdRes = (PainelMostrarResultadoDia?1:0) + (PainelMostrarResultadoSemana?1:0) + (PainelMostrarResultadoMes?1:0) + (PainelMostrarResultadoTotal?1:0);
    int hRes = 62 + MathMax(qtdRes,1)*15 + 18;
-   int hPainel = 96 + 128 + 12 + 144 + 12 + hRes + 12 + 64 + 12;
+   int hPainel = 96 + 128 + 12 + 176 + 12 + hRes + 12 + 64 + 12;
 
    PainelRetangulo("PBFX_PANEL_BG", x, y, w, hPainel, destaque, fundo);
 
@@ -2479,9 +2496,13 @@ void AtualizarPainel()
    PainelLinhaInfo("PBFX_STATUS", i, x+32, by+46, "Reversão:", AtivoDesativo(UsarReversao), (UsarReversao?clrLime:clrTomato));
 
    by += 140;
-   PainelRetangulo("PBFX_PANEL_BOX_OPER", x+10, by, w-20, 144, borda, fundoBloco);
+   PainelRetangulo("PBFX_PANEL_BOX_OPER", x+10, by, w-20, 176, borda, fundoBloco);
    PainelCabecalho("PBFX_PANEL_H_OPER", x+24, by+12, "OPERAÇÃO ATUAL");
    i=0;
+   bool operandoAgora = (vc > 0.0 || vv > 0.0);
+   double abertoRobo = ResultadoAbertoRobo();
+   PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Operando:", (operandoAgora ? "SIM" : "NAO"), (operandoAgora?clrLime:clrGold));
+   PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Aberto:", DoubleToString(abertoRobo,2), CorValorFinanceiro(abertoRobo));
    PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Direção:", direcao, (ladoAtual==LADO_COMPRA?clrLime:(ladoAtual==LADO_VENDA?clrTomato:clrSilver)));
    PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Lote Atual:", DoubleToString(CalcularVolumeInicial(),2), clrWhite);
    PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Volume C/V:", DoubleToString(vc,2)+" / "+DoubleToString(vv,2), clrWhite);
@@ -2489,7 +2510,7 @@ void AtualizarPainel()
    PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Stop:", (UsarReversao ? NomeModoStopReversao() : NomeModoStopOperacao()), clrTomato);
    PainelLinhaInfo("PBFX_OPER", i, x+32, by+48, "Situação:", (cestaReversaoAtiva ? "CESTA ATIVA" : "AGUARDANDO"), (cestaReversaoAtiva?clrDeepSkyBlue:clrGold));
 
-   by += 156;
+   by += 188;
    PainelRetangulo("PBFX_PANEL_BOX_RES", x+10, by, w-20, hRes+8, borda, fundoBloco);
    PainelCabecalho("PBFX_PANEL_H_RES", x+24, by+12, "RESULTADOS");
    PainelBotaoCheck("PBFX_TOGGLE_DIA",    x+24,  by+42, "Dia",    PainelMostrarResultadoDia);
