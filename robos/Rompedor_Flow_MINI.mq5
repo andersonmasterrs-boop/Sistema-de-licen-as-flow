@@ -42,6 +42,7 @@ enum ModoStopCestaReversao
 string LicenseServer = "https://sistema-de-licen-as-flow.vercel.app";
 string RobotName     = "Rompedor Flow";
 string LicenseKey    = "LIC-ROMPEDOR-FLOW";
+string RobotVersion  = "1.21";
 int    LicenseCheckIntervalSeconds = 900; // oculto - revalida licenca e mensagens a cada 15 minutos
 string LastLicenseServerMessage = "";
 datetime LastPerformanceReportAt = 0;
@@ -286,6 +287,7 @@ string MontarUrlLicenca()
           + "&account=" + UrlEncodeLicenca(account)
           + "&name=" + UrlEncodeLicenca(accountName)
           + "&robot=" + UrlEncodeLicenca(RobotName)
+          + "&version=" + UrlEncodeLicenca(RobotVersion)
           + "&broker=" + UrlEncodeLicenca(broker)
           + "&server=" + UrlEncodeLicenca(accountServer)
           + "&key=" + UrlEncodeLicenca(LicenseKey)

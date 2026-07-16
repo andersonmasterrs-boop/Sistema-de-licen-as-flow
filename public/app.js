@@ -575,6 +575,7 @@ function renderRobots() {
             <span class="badge">${robot.clients} clientes</span>
             <span class="badge">versao informativa</span>
             <div class="muted">${escapeHtml(robot.messageId ? robot.message : (robot.message ? "Mensagem antiga sem disparo ativo" : "Sem mensagem ativa"))}</div>
+            ${robotVersionSummary(robot)}
           </div>
           <button class="btn btn-blue" onclick="openRobotMessage('${robot.id}')">Mensagem</button>
         </article>
@@ -647,7 +648,7 @@ function renderChecks() {
       <p class="muted">Historico das ultimas verificacoes feitas pelos robos.</p>
     </section>
     <section class="cards-list">
-      ${state.data.checkIns.map(checkRow).join("") || empty("Nenhuma verificacao ainda.")}
+      ${state.data.checkIns.slice(0, 120).map(checkRow).join("") || empty("Nenhuma verificacao ainda.")}
     </section>
   `;
 }
@@ -1470,7 +1471,7 @@ function checkRow(check) {
     <article class="check-row">
       <div>
         <strong>${escapeHtml(check.account || "-")} / ${escapeHtml(check.robot || "-")}</strong>
-        <div class="muted">${formatDate(check.at)} - ${escapeHtml(check.ip || "")}</div>
+        <div class="muted">${formatDate(check.at)} - ${escapeHtml(check.ip || "")}${check.clientVersion ? ` - versao ${escapeHtml(check.clientVersion)}` : ""}</div>
       </div>
       <span class="badge ${check.authorized ? "green" : "red"}">${escapeHtml(check.reason)}</span>
     </article>
@@ -1500,6 +1501,46 @@ function auditRow(audit) {
       <span class="badge">${escapeHtml(audit.details?.account || audit.details?.user || audit.details?.robot || audit.details?.licenseId || "-")}</span>
     </article>
   `;
+}
+
+function robotVersionSummary(robot) {
+  const checks = latestChecksForRobot(robot);
+  const versions = new Map();
+  checks.forEach((check) => {
+    const version = check.clientVersion || "sem versao";
+    versions.set(version, (versions.get(version) || 0) + 1);
+  });
+  const expected = String(robot.version || "").replace(/^v/i, "");
+  const outdated = checks.filter((check) => {
+    const current = String(check.clientVersion || "").replace(/^v/i, "");
+    return expected && current && compareVersions(current, expected) < 0;
+  });
+  return `
+    <div class="muted">Versoes detectadas: ${Array.from(versions.entries()).map(([version, total]) => `${escapeHtml(version)} (${total})`).join(", ") || "nenhuma"}</div>
+    ${outdated.length ? `<div class="muted">Desatualizados: ${outdated.slice(0, 6).map((check) => `${escapeHtml(check.accountName || check.account || "-")} ${check.clientVersion ? `v${escapeHtml(String(check.clientVersion).replace(/^v/i, ""))}` : ""}`).join("; ")}${outdated.length > 6 ? ` +${outdated.length - 6}` : ""}</div>` : ""}
+  `;
+}
+
+function compareVersions(a, b) {
+  const left = String(a || "").replace(/^v/i, "").split(".").map((part) => Number(part) || 0);
+  const right = String(b || "").replace(/^v/i, "").split(".").map((part) => Number(part) || 0);
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index++) {
+    const diff = (left[index] || 0) - (right[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function latestChecksForRobot(robot) {
+  const byAccount = new Map();
+  (state.data.checkIns || []).forEach((check) => {
+    const sameRobot = check.robotId === robot.id || String(check.robot || "").toLowerCase() === String(robot.name || "").toLowerCase();
+    if (!sameRobot) return;
+    const key = String(check.account || check.accountName || check.id);
+    if (!byAccount.has(key)) byAccount.set(key, check);
+  });
+  return Array.from(byAccount.values());
 }
 
 function alertRow(alert) {
