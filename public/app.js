@@ -836,6 +836,7 @@ function licenseCard(license) {
       <div class="actions">
         <button class="btn btn-blue" onclick="openLicenseDetails('${license.id}')">Detalhes</button>
         <button class="btn btn-ghost" onclick="copyText('${escapeAttr(license.key)}')">Copiar chave</button>
+        ${effectiveType === "TRIAL" ? `<button class="btn btn-ghost" onclick="openExtendTrial('${license.id}')">+ teste</button>` : ""}
         ${effectiveType === "TRIAL" ? `<button class="btn btn-ghost" onclick="openConvertLicense('${license.id}')">Converter para paga</button>` : ""}
         <button class="btn btn-ghost" onclick="extendLicense('${license.id}', 365)">+1 ano</button>
         <button class="btn btn-red" onclick="deleteLicense('${license.id}')">Excluir</button>
@@ -1162,6 +1163,50 @@ async function extendLicense(licenseId, days) {
   date.setDate(date.getDate() + days);
   await api(`/api/licenses/${licenseId}`, { method: "PUT", body: JSON.stringify({ expiresAt: date.toISOString(), status: "active", type: "REAL" }) });
   toast("Licenca efetivada e prorrogada");
+  closeModal();
+  await reload();
+  openUser(license.userId);
+}
+
+function openExtendTrial(licenseId) {
+  const license = state.data.licenses.find((item) => item.id === licenseId);
+  if (!license) return toast("Licenca nao encontrada");
+  const modal = document.querySelector("#modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <article class="modal-card">
+      <div class="actions" style="justify-content: space-between">
+        <h2>Prorrogar teste gratis</h2>
+        <button class="btn btn-ghost" onclick="openUser('${license.userId}')">Voltar</button>
+      </div>
+      <form onsubmit="extendTrial(event, '${license.id}')">
+        <div class="split">
+          <label>Dias adicionais <input name="days" type="number" min="1" max="90" value="7" required></label>
+          <label>Vencimento atual <input value="${escapeAttr(formatDate(license.expiresAt))}" disabled></label>
+        </div>
+        <br>
+        <p class="muted">Esta acao mantem a licenca como TRIAL e apenas aumenta o prazo do teste.</p>
+        <div class="actions">
+          <button class="btn btn-red" type="submit">Adicionar dias de teste</button>
+          <button class="btn btn-ghost" type="button" onclick="openUser('${license.userId}')">Cancelar</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+async function extendTrial(event, licenseId) {
+  event.preventDefault();
+  const body = Object.fromEntries(new FormData(event.target).entries());
+  const days = Math.max(1, Number(body.days || 1));
+  const license = state.data.licenses.find((item) => item.id === licenseId);
+  const date = new Date(Math.max(Date.now(), new Date(license.expiresAt).getTime()));
+  date.setDate(date.getDate() + days);
+  await api(`/api/licenses/${licenseId}`, {
+    method: "PUT",
+    body: JSON.stringify({ expiresAt: date.toISOString(), status: "active", type: "TRIAL", price: 0 })
+  });
+  toast("Teste gratis prorrogado");
   closeModal();
   await reload();
   openUser(license.userId);
