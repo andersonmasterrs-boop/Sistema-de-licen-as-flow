@@ -426,6 +426,7 @@ function renderRanking() {
 function renderPerformance() {
   const perf = performanceSummary();
   const bySymbol = groupPerformanceBySymbol();
+  const attempts = state.data.performanceAttempts || [];
   return `
     <section class="panel hero-panel">
       <h1>Performance</h1>
@@ -449,6 +450,10 @@ function renderPerformance() {
     <section class="panel">
       <h2>Resultados por ativo</h2>
       <div class="bar-list">${bySymbol.map(symbolBar).join("") || `<div class="muted">Nenhum ativo recebido ainda.</div>`}</div>
+    </section>
+    <section class="panel">
+      <h2>Ultimos envios dos robos</h2>
+      <div class="cards-list">${attempts.slice(0, 20).map(performanceAttemptRow).join("") || `<div class="muted">Nenhum envio de performance recebido ainda.</div>`}</div>
     </section>
   `;
 }
@@ -1534,6 +1539,18 @@ function paymentRow(payment) {
         <div class="muted">${escapeHtml(payment.account || "-")} - ${formatDate(payment.paidAt || payment.updatedAt || payment.createdAt)}</div>
       </div>
       <span class="badge ${payment.status === "approved" ? "green" : payment.status === "pending" ? "" : "red"}">${money(payment.amount)}</span>
+    </article>
+  `;
+}
+
+function performanceAttemptRow(attempt) {
+  return `
+    <article class="check-row">
+      <div>
+        <strong>${escapeHtml(attempt.account || "-")} / ${escapeHtml(attempt.robot || "-")} / ${escapeHtml(attempt.symbol || "-")}</strong>
+        <div class="muted">${formatDate(attempt.at)} - ${escapeHtml(attempt.accountName || "-")} - ${attempt.ok ? "gravado" : escapeHtml(attempt.error || "recusado")}</div>
+      </div>
+      <span class="badge ${attempt.ok ? "green" : "red"}">${attempt.ok ? money(attempt.profitDay) : "falhou"}</span>
     </article>
   `;
 }

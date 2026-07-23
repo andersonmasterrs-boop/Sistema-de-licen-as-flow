@@ -399,10 +399,17 @@ bool EnviarPerformanceOnline()
       server = StringSubstr(server, 0, StringLen(server) - 1);
 
    string account = IntegerToString((int)AccountInfoInteger(ACCOUNT_LOGIN));
+   string accountName = AccountInfoString(ACCOUNT_NAME);
+   string broker = AccountInfoString(ACCOUNT_COMPANY);
+   string accountServer = AccountInfoString(ACCOUNT_SERVER);
    string url = server + "/api/performance/report?format=text"
           + "&account=" + UrlEncodeLicenca(account)
+          + "&name=" + UrlEncodeLicenca(accountName)
           + "&robot=" + UrlEncodeLicenca(RobotName)
+          + "&broker=" + UrlEncodeLicenca(broker)
+          + "&server=" + UrlEncodeLicenca(accountServer)
           + "&key=" + UrlEncodeLicenca(LicenseKey)
+          + "&phone=" + UrlEncodeLicenca(TelefoneWhatsApp)
           + "&symbol=" + UrlEncodeLicenca(_Symbol)
           + "&magic=" + UrlEncodeLicenca(IntegerToString((int)NumeroMagico))
           + "&date=" + UrlEncodeLicenca(DataAtualISO())
