@@ -71,6 +71,9 @@ input int    MaxOperacoesDia           = 1;         // 0 = sem limite; reversão
 bool   UsarOrdensPendentes       = true;      // oculto - entradas e reversão por Buy Stop/Sell Stop nas linhas
 bool   ExecutarMercadoSeJaRompeu = true;      // oculto - executa a mercado se o canal já estiver rompido
 int    JanelaEntradaMercadoAposCanal_Segundos = 60; // oculto
+input group "Trava de Entrada Inicial"
+input bool   UsarTravaEntradaSemExecucao = false; // se passar X minutos apos formar o canal sem entrada, nao opera mais
+input int    MinutosEntradaSemExecucao   = 40;
 bool   BloquearReentradaMesmoCandle = true; // oculto - após fechar uma operação, não abre nova no mesmo candle
 
 
@@ -266,6 +269,11 @@ string UrlEncodeLicenca(string value)
    return result;
 }
 
+bool EmModoTeste()
+{
+   return (MQLInfoInteger(MQL_TESTER) || MQLInfoInteger(MQL_OPTIMIZATION));
+}
+
 void MostrarMensagemLicenca(string titulo, string mensagem)
 {
    Print(titulo, ": ", mensagem);
@@ -296,6 +304,8 @@ string MontarUrlLicenca()
 
 bool VerificarLicencaOnline()
 {
+   if(EmModoTeste()) return true;
+
    LicenseFailureMessageShown = false;
    if(StringLen(LicenseServer) <= 0 || StringLen(LicenseKey) <= 0)
    {
@@ -391,6 +401,8 @@ string ValorUrl(double value)
 
 bool EnviarPerformanceOnline()
 {
+   if(EmModoTeste()) return true;
+
    if(StringLen(LicenseServer) <= 0 || StringLen(LicenseKey) <= 0)
       return false;
 
@@ -1394,6 +1406,17 @@ bool DentroDoHorario()
    datetime ini = InicioOperacaoParaDia(dia);
    datetime fim = FimOperacaoParaDia(dia);
    return (agora >= ini && agora <= fim);
+}
+
+bool EntradaInicialExpiradaSemExecucao()
+{
+   if(!UsarTravaEntradaSemExecucao) return false;
+   if(horarioBaseAtual <= 0) return false;
+   if(ciclosExecutadosHoje > 0 || cicloAtualContabilizado) return false;
+
+   int minutos = MathMax(1, MinutosEntradaSemExecucao);
+   datetime limite = horarioBaseAtual + SegundosTimeframeCanal() + minutos * 60;
+   return (TimeCurrent() > limite);
 }
 
 
@@ -2689,6 +2712,13 @@ void ExecutarEstrategia()
 
    VerificarFechamentoPorTPManual();
    cicloAtualContabilizado = false;
+
+   if(EntradaInicialExpiradaSemExecucao())
+   {
+      CancelarPendentesDoRobo();
+      statusDia = "Entrada inicial expirada";
+      return;
+   }
 
    if(MaxOperacoesDia > 0 && ciclosExecutadosHoje >= MaxOperacoesDia)
    {
