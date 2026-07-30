@@ -192,10 +192,12 @@ double Trailing_Ordem_Unica_Ativar_Quando_Atingir_Percentual_Do_Alvo = 70.0;
 double Trailing_Ordem_Unica_Manter_Distancia_Percentual_Do_Alvo = 20.0;
 double Trailing_Ordem_Unica_Atualizar_A_Cada_Percentual_Do_Alvo = 3.0;
 
+input group "Stop da Operacao"
+
 // Stop da Operação sem Reversão (oculto)
-bool   UsarStopOperacaoSemReversao    = true;
-ModoStopCestaReversao ModoStopOperacao = STOP_NO_CANAL_CONTRARIO; // 0=canal contrário | 1=linha externa | 2=X pontos
-double StopOperacao_Pontos             = 300.0;  // usado quando ModoStopOperacao = STOP_X_PONTOS_REVERSAO
+input bool   UsarStopOperacaoSemReversao    = true;
+input ModoStopCestaReversao ModoStopOperacao = STOP_NO_CANAL_CONTRARIO; // 0=canal contrario | 1=linha externa | 2=X pontos
+input double StopOperacao_Pontos             = 300.0;  // usado quando ModoStopOperacao = STOP_X_PONTOS_REVERSAO
 
 // Filtro de Tendência por Média (oculto)
 bool   UsarFiltroMediaTendencia  = false;     // oculto
