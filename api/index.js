@@ -28,6 +28,7 @@ const {
   methodNotAllowed,
   pick
 } = require("../lib/store");
+const crypto = require("crypto");
 
 module.exports = async function handler(req, res) {
   try {
@@ -36,6 +37,12 @@ module.exports = async function handler(req, res) {
 
     if (route === "/health") {
       return sendJson(res, 200, { ok: true, service: "license-system-api", storage: storageStatus(), time: new Date().toISOString() });
+    }
+
+    if (route === "/admin/backup") {
+      if (req.method !== "GET") return methodNotAllowed(res);
+      if (!isAuthorizedBackup(req)) return sendJson(res, 401, { ok: false, error: "UNAUTHORIZED" });
+      return sendBackup(res, getDb());
     }
 
     if (route === "/session/login") {
@@ -130,6 +137,31 @@ function normalizeRoute(req) {
 
 function sanitizeTextMessage(message) {
   return String(message || "").replace(/\|/g, "/").replace(/[\r\n]+/g, " ").trim();
+}
+
+function isAuthorizedBackup(req) {
+  const expected = Buffer.from(String(process.env.BACKUP_API_KEY || ""));
+  const supplied = Buffer.from(String(req.headers["x-backup-key"] || ""));
+  return expected.length >= 32 && expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
+}
+
+function sendBackup(res, db) {
+  const requiredCollections = ["users", "licenses", "robots"];
+  if (!requiredCollections.every((name) => Array.isArray(db[name]))) {
+    return sendJson(res, 500, { ok: false, error: "INVALID_BACKUP_STATE" });
+  }
+
+  const createdAt = new Date().toISOString();
+  const lines = [
+    JSON.stringify({ type: "manifest", format: "license-system-jsonl", version: 1, createdAt }),
+    JSON.stringify({ type: "state", data: db }),
+    JSON.stringify({ type: "complete", createdAt })
+  ];
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="license-system-backup-${createdAt.slice(0, 10)}.jsonl"`);
+  res.setHeader("Cache-Control", "no-store");
+  return res.end(`${lines.join("\n")}\n`);
 }
 
 async function persistDb() {

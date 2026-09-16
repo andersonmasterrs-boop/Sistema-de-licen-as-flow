@@ -41,7 +41,31 @@ SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key
 ```
 
+Para inicializar uma instalacao nova, defina temporariamente
+`LICENSE_ALLOW_DB_INITIALIZATION=true`, acesse a API uma vez e depois remova a
+variavel. Em uma instalacao existente, nao mantenha essa opcao habilitada: se a
+linha de estado estiver ausente ou a chave mudar, a API deve falhar sem gravar
+os dados iniciais sobre o armazenamento.
+
 6. Faca redeploy no Vercel.
+
+## Backup local diario no Google Drive
+
+O backup segue o mesmo modelo do projeto Central Robots. Um monitor oculto e
+iniciado junto com o Windows e, uma vez por dia depois das 12:00, baixa o estado
+completo para `G:\Meu Drive\Backups - Sistema de Licencas MT5\AAAA\MM`.
+
+O notebook precisa estar ligado e o Google Drive para computador precisa estar
+aberto. Se o notebook for ligado depois das 12:00, o backup daquele dia sera
+feito assim que o monitor iniciar. A chave do endpoint e armazenada com DPAPI e
+so pode ser lida pelo mesmo usuario do Windows.
+
+Na Vercel, configure `BACKUP_API_KEY` com uma chave aleatoria de pelo menos 32
+caracteres. Depois instale o monitor local:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-license-system-backup.ps1 -BackupKey "SUA_CHAVE"
+```
 
 Login inicial:
 
